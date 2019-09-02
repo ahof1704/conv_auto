@@ -16,7 +16,7 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 #import torch.sigmoid as sig
-
+import os
 
 class ConvAutoencoder(nn.Module):
     def __init__(self):
@@ -66,17 +66,18 @@ transform = transforms.ToTensor()
 # how many samples per batch to load
 # batch_size = 20
 
-dataset_dir      = '../data/All_samples_noise/vocalization'
+curr_path	 = os.getcwd()
+dataset_dir      = os.path.join(curr_path, "data/All_samples_noise")
 batch_size       = 128
 validation_split = .1 # -- split training set into train/val sets
 epochs           = 100
-print('training params:\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}'.format(dataset_dir, batch_size, validation_split, epochs))
+print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}'.format(curr_path, dataset_dir, batch_size, validation_split, epochs))
 
 # -- transforms to use
-# trans         = transforms.Compose([
-#     transforms.Resize(224),
-#     transforms.ToTensor()
-# ])
+trans         = transforms.Compose([
+    transforms.Resize(224),
+    transforms.ToTensor()
+])
 
 # -- create dataset
 image_dataset = datasets.ImageFolder(dataset_dir, transform=trans)
