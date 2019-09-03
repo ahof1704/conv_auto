@@ -15,6 +15,7 @@ from torchvision import datasets
 import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
+from   torch.utils.data.sampler import SubsetRandomSampler
 #import torch.sigmoid as sig
 import os
 
@@ -47,12 +48,12 @@ class ConvAutoencoder(nn.Module):
         #Add transpose conv layers, with relu actication function
         x = F.relu(self.t_conv1(x))
         # output layer (with sigmoid for scaling from 0 to 1)
-        x = F.sigmoid(self.t_conv2(x))
+        x = torch.sigmoid(self.t_conv2(x))
 
         return x
 
 # convert data to torch.FloatTensor
-transform = transforms.ToTensor()
+# transform = transforms.ToTensor()
 
 # load the training and test datasets
 # train_data = datasets.MNIST(root='data', train=True,
@@ -66,6 +67,7 @@ transform = transforms.ToTensor()
 # how many samples per batch to load
 # batch_size = 20
 
+phase = 'val'
 curr_path	 = os.getcwd()
 dataset_dir      = os.path.join(curr_path, "data/All_samples_noise")
 batch_size       = 128
@@ -74,9 +76,14 @@ epochs           = 100
 print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}'.format(curr_path, dataset_dir, batch_size, validation_split, epochs))
 
 # -- transforms to use
+normalize = transforms.Normalize(mean=[0.485],
+                                     std=[0.229])
+
 trans         = transforms.Compose([
     transforms.Resize(224),
-    transforms.ToTensor()
+    transforms.Grayscale(num_output_channels=1),
+    transforms.ToTensor(),
+    normalize
 ])
 
 # -- create dataset
@@ -111,7 +118,7 @@ import matplotlib.pyplot as plt
 #matplotlib inline
     
 # obtain one batch of training images
-dataiter = iter(train_loader)
+dataiter = iter(dataloaders['train'])
 images, labels = dataiter.next()
 images = images.numpy()
 
@@ -121,6 +128,7 @@ img = np.squeeze(images[0])
 fig = plt.figure(figsize = (5,5)) 
 ax = fig.add_subplot(111)
 ax.imshow(img, cmap='gray')
+plt.savefig('USV_example.png')
 
 #initialize the NN
 model = ConvAutoencoder()
@@ -134,36 +142,46 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 #Number of epoch for training
-n_epochs = 30
+n_epochs = 10
+best_loss = 100.0
 
-for epoch in range (1, n_epochs+1):
-    #Monitor training Loss
-    train_loss = 0.0
-    
-    #Train the model
-    for data in train_loader:
-        # _ stands in for labels, here no need t flatten images
-        images, _ = data
-        #Clear the gradients of all optimized variables
-        optimizer.zero_grad()
-        #Forward pass: compute predicted outputs by passing inputs to the model
-        outputs = model(images)
-        #Calculate the loss
-        loss = criterion(outputs, images)
-        #backward pass: compute graditent of the loss with respect to the model parameters
-        loss.backward()
-        # Perform single optimization step (parameter update)
-        optimizer.step()
-        #Update running training loss
-        train_loss += loss.item()*images.size(0)
+if phase == 'train':
+    for epoch in range (1, n_epochs+1):
+        #Monitor training Loss
+        train_loss = 0.0
         
-    #print average training stats
-    train_loss = train_loss/len(train_loader)
-    print('Epoch: {} \tTraining Loss: {:.6f}'.format(epoch,train_loss))
-    
+        #Train the model
+        for data in dataloaders['train']:
+            # _ stands in for labels, here no need t flatten images
+            images, _ = data
+            #Clear the gradients of all optimized variables
+            optimizer.zero_grad()
+            #Forward pass: compute predicted outputs by passing inputs to the model
+            outputs = model(images)
+            #Calculate the loss
+            loss = criterion(outputs, images)
+            #backward pass: compute graditent of the loss with respect to the model parameters
+            loss.backward()
+            # Perform single optimization step (parameter update)
+            optimizer.step()
+            #Update running training loss
+            train_loss += loss.item()*images.size(0)
+            
+        #print average training stats
+        train_loss = train_loss/len(dataloaders['train'])
+        print('Epoch: {} \tTraining Loss: {:.6f}'.format(epoch,train_loss))
+
+        if train_loss < best_loss:
+            best_loss = train_loss
+            best_model_wts = copy.deepcopy(model.state_dict())
+            torch.save(best_model_wts, 'best_net.pth')
+
+else:
+    model.load_state_dict(torch.load('best_net.pth'))
+
 ## Checking results ##
 #Batch of test images
-dataiter = iter(dataloader['val'])
+dataiter = iter(dataloaders['val'])
 images, labels = dataiter.next()
 
 #Get sample outputs
@@ -172,7 +190,7 @@ output = model(images)
 images = images.numpy()
 
 #Output is resized in a batch of images
-output = output.view(batch_size,1,28,28)
+output = output.view(batch_size,1,224,224)
 #use deatch when it's an output that requires grad
 output = output.detach().numpy()
 
@@ -185,3 +203,6 @@ for images, row in zip([images, output], axes):
         ax.imshow(np.squeeze(img), cmap='gray')
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
+
+plt.savefig('conv_auto_output.png')
+
