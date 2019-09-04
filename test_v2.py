@@ -8,7 +8,7 @@ Just playing around with some autoenconders
 
 """
 # matplotlib inline
-
+import copy
 import torch
 import numpy as np
 from torchvision import datasets
@@ -178,7 +178,7 @@ if phase == 'train':
 
 else:
     model.load_state_dict(torch.load('best_net.pth'))
-
+print(model)
 ## Checking results ##
 #Batch of test images
 dataiter = iter(dataloaders['val'])
