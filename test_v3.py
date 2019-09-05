@@ -11,48 +11,51 @@ Just playing around with some autoenconders
 
 import torch
 import numpy as np
+import copy
 from torchvision import datasets
 import torchvision.transforms as transforms
 import torch.nn as nn
+from torch.autograd import Variable
 import torch.nn.functional as F
 from   torch.utils.data.sampler import SubsetRandomSampler
+from torchvision.utils import save_image
 #import torch.sigmoid as sig
 import os
+
+if not os.path.exists('./dc_img'):
+    os.mkdir('./dc_img')
+
+
+def to_img(x):
+    x = 0.5 * (x + 1)
+    x = x.clamp(0, 1)
+    x = x.view(x.size(0), 1, 436, 436)
+    return x
+
 
 class ConvAutoencoder(nn.Module):
     def __init__(self):
         super(ConvAutoencoder, self).__init__()
-        #enconder layers
-        #Conv layer (depth from 1-> 16), 3x3 kernels
-        self.conv1 = nn.Conv2d(1,16,3, stride=3, padding=1)
-        # Conv layer (depth from 16 --> 4), 3x3 kernels
-        self.conv2 = nn.Conv2d(16,8,3, stride=2, padding=1)
-        # Pooling layer to reduce dimension 
-        self.pool = nn.MaxPool2d(2,stride=1)
-        # self.ReLU = nn.ReLU(true)
-        
-        ## Decoder Layer ##
-        ## a kernel of 2 and a stride of 2 will increase the spatial dims by 2
-        self.t_conv1 = nn.ConvTranspose2d(8,16,3, stride=2)
-        self.t_conv2 = nn.ConvTranspose2d(16,8,5, stride=3, padding=1)
-        self.t_conv3 = nn.ConvTranspose2d(8,1,2, stride=2, padding=1)
-    
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 16, 3, stride=3, padding=1),  # b, 16, 10, 10
+            nn.ReLU(True),
+            nn.MaxPool2d(2, stride=2),  # b, 16, 5, 5
+            nn.Conv2d(16, 8, 3, stride=2, padding=1),  # b, 8, 3, 3
+            nn.ReLU(True),
+            nn.MaxPool2d(2, stride=1)  # b, 8, 2, 2
+        )
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(8, 16, 3, stride=2),  # b, 16, 5, 5
+            nn.ReLU(True),
+            nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1),  # b, 8, 15, 15
+            nn.ReLU(True),
+            nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1),  # b, 1, 28, 28
+            nn.Tanh()
+        )
+
     def forward(self, x):
-        ## Enconde ##
-        # Add hidden layers with relu activation function and maxpooling
-        x = F.ReLU(self.conv1(x))
-        x = self.pool(x)
-        # Add a second hidden layer
-        x = F.ReLU(self.conv2(x))
-        x = self.pool(x) #compressed representation
-
-        ##Decode ##
-        #Add transpose conv layers, with relu actication function
-        x = F.Relu(self.t_conv1(x))
-        x = F.Relu(self.t_conv2(x))
-        # output layer (with sigmoid for scaling from 0 to 1)
-        x = torch.sigmoid(self.t_conv3(x))
-
+        x = self.encoder(x)
+        x = self.decoder(x)
         return x
 
 # convert data to torch.FloatTensor
@@ -75,15 +78,15 @@ curr_path	 = os.getcwd()
 dataset_dir      = os.path.join(curr_path, "data/All_samples_noise")
 batch_size       = 128
 validation_split = .1 # -- split training set into train/val sets
-epochs           = 100
-print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}'.format(curr_path, dataset_dir, batch_size, validation_split, epochs))
+n_epochs           = 100
+print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}'.format(curr_path, dataset_dir, batch_size, validation_split, n_epochs))
 
 # -- transforms to use
 normalize = transforms.Normalize(mean=[0.5],
                                      std=[0.5])
 
 trans         = transforms.Compose([
-    transforms.Resize(224),
+    transforms.Resize(436),
     transforms.Grayscale(num_output_channels=1),
     transforms.ToTensor(),
     normalize
@@ -127,14 +130,15 @@ images = images.numpy()
 
 # get one image from the batch
 img = np.squeeze(images[0])
-
+print('Dim of sample image: {}\n'.format(img.shape))
 fig = plt.figure(figsize = (5,5)) 
 ax = fig.add_subplot(111)
 ax.imshow(img, cmap='gray')
 plt.savefig('USV_example.png')
 
 #initialize the NN
-model = ConvAutoencoder()
+#model = ConvAutoencoder()
+model = ConvAutoencoder().cuda()
 print(model)
 
 ## Training the NN ##
@@ -145,7 +149,7 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 #Number of epoch for training
-n_epochs = 30
+#n_epochs = 30
 best_loss = 100.0
 
 if phase == 'train':
@@ -157,6 +161,7 @@ if phase == 'train':
         for data in dataloaders['train']:
             # _ stands in for labels, here no need t flatten images
             images, _ = data
+            images = Variable(images).cuda()
             #Clear the gradients of all optimized variables
             optimizer.zero_grad()
             #Forward pass: compute predicted outputs by passing inputs to the model
@@ -180,7 +185,7 @@ if phase == 'train':
             torch.save(best_model_wts, 'best_net_test3.pth')
 
         if epoch % 5 == 0:
-                pic = to_img(output.cpu().data)
+                pic = to_img(outputs.cpu().data)
                 save_image(pic, './dc_img/image_{}.png'.format(epoch))
 
 else:
@@ -190,14 +195,17 @@ else:
 #Batch of test images
 dataiter = iter(dataloaders['val'])
 images, labels = dataiter.next()
+images = Variable(images).cuda()
 
 #Get sample outputs
 output = model(images)
 #Prep images for display
+output = output.cpu()
+images = images.cpu()
 images = images.numpy()
 
 #Output is resized in a batch of images
-output = output.view(batch_size,1,224,224)
+output = output.view(batch_size,1,436,436)
 #use deatch when it's an output that requires grad
 output = output.detach().numpy()
 
