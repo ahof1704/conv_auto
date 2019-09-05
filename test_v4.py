@@ -34,14 +34,14 @@ def to_img(x):
 
 
 class ConvAutoencoder(nn.Module):
-    def __init__(self, cocd_size):
+    def __init__(self, code_size):
         self.code_size = code_size
         super().__init__()
         # self.encoder = nn.Sequential(
-        self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1),  # b, 16, 10, 10
+        self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
         # nn.ReLU(True),
         # nn.MaxPool2d(2, stride=2),  # b, 16, 5, 5 -> 436/2 = 218
-        self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1),  # b, 8, 3, 3
+        self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1)  # b, 8, 3, 3
         # nn.ReLU(True),
         # nn.MaxPool2d(2, stride=1)  # b, 8, 2, 2 -> 218/2 = 109
         # add regularuzation 
@@ -49,7 +49,7 @@ class ConvAutoencoder(nn.Module):
         # add fc layer to 100dim here or another conv
         # check for getting enconding from conv auto enconder (how to check the latent space)
         # 109 * 8 * 8 = 6976
-        self.enc_linear_1 = nn.Linear(in_features=6976, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
+        self.enc_linear_1 = nn.Linear(in_features=10368, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
         # nn.Dropout(p=0.5)                    #Dropout used to reduce overfitting
         self.enc_linear_2 = nn.Linear(in_features=4000, out_features=2000)
         # nn.Dropout(p=0.5)
@@ -64,12 +64,12 @@ class ConvAutoencoder(nn.Module):
         # add the inverse of the 12dim fc layer
         self.dec_linear_1 = nn.Linear(in_features=12, out_features=2000)
         # nn.ReLU(True),
-        self.dec_linear_2 = nn.Linear(in_features=2000, out_features=6976)
-        self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2),  # b, 16, 5, 5
+        self.dec_linear_2 = nn.Linear(in_features=2000, out_features=436 * 436)
+        self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2)  # b, 16, 5, 5
         # nn.ReLU(True),
-        self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1),  # b, 8, 15, 15
+        self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1)  # b, 8, 15, 15
         # nn.ReLU(True),
-        self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1),  # b, 1, 28, 28
+        self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1)  # b, 1, 28, 28
         # nn.Tanh()
         # )
 
@@ -83,6 +83,7 @@ class ConvAutoencoder(nn.Module):
         x = F.relu(F.max_pool2d(x,kernel_size=2, stride=2)) #436/2 = 218
         x = self.enc_cnn_2(x)
         x = F.relu(F.max_pool2d(x,kernel_size=2, stride=1)) #218/2 = 109
+        x = x.view([images.size(0), -1])
         x = self.enc_linear_1(x)
         x = F.dropout(x,p=0.5)
         x = self.enc_linear_2(x)
@@ -97,12 +98,13 @@ class ConvAutoencoder(nn.Module):
         return encoded
 
     def decoder(self, encoded):
-        x = F.relu(self.dec_linear_1(x))
-        x = self.dec_linear_2(x)
-        x = F.relu(self.dec_convT_1(x))
-        x = F.relu(self.dec_convT_2(x))
-        x = F.tanself.dec_convT_3(x)
-        decoded = F.tanh(x)
+        x = F.relu(self.dec_linear_1(encoded))
+        x = F.tanh(self.dec_linear_2(x))
+        decoded = x.view([encoded.size(0), 1, 436, 436])
+#        x = F.relu(self.dec_convT_1(x))
+#        x = F.relu(self.dec_convT_2(x))
+#        x = F.tanself.dec_convT_3(x)
+#        decoded = F.tanh(x)
 
         return decoded
 
@@ -189,7 +191,7 @@ plt.savefig('USV_example.png')
 
 #initialize the NN
 #model = ConvAutoencoder()
-code_size = 20
+code_size = 12
 model = ConvAutoencoder(code_size).cuda()
 print(model)
 
