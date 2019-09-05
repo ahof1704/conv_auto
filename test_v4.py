@@ -34,8 +34,9 @@ def to_img(x):
 
 
 class ConvAutoencoder(nn.Module):
-    def __init__(self):
-        super(ConvAutoencoder, self).__init__()
+    def __init__(self, cocd_size):
+        self.code_size = code_size
+        super().__init__()
         # self.encoder = nn.Sequential(
         self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1),  # b, 16, 10, 10
         # nn.ReLU(True),
@@ -72,13 +73,13 @@ class ConvAutoencoder(nn.Module):
         # nn.Tanh()
         # )
 
-    def forward(self, x):
-        encoded = self.encoder(x)
+    def forward(self, images):
+        encoded = self.encoder(images)
         decoded = self.decoder(encoded)
         return encoded, decoded
 
-    def encoder(self, x)
-        x = self.enc_cnn_1(x)
+    def encoder(self, images):
+        x = self.enc_cnn_1(images)
         x = F.relu(F.max_pool2d(x,kernel_size=2, stride=2)) #436/2 = 218
         x = self.enc_cnn_2(x)
         x = F.relu(F.max_pool2d(x,kernel_size=2, stride=1)) #218/2 = 109
@@ -95,7 +96,7 @@ class ConvAutoencoder(nn.Module):
 
         return encoded
 
-    def decoder(self, encoded)
+    def decoder(self, encoded):
         x = F.relu(self.dec_linear_1(x))
         x = self.dec_linear_2(x)
         x = F.relu(self.dec_convT_1(x))
@@ -188,7 +189,8 @@ plt.savefig('USV_example.png')
 
 #initialize the NN
 #model = ConvAutoencoder()
-model = ConvAutoencoder().cuda()
+code_size = 20
+model = ConvAutoencoder(code_size).cuda()
 print(model)
 
 ## Training the NN ##
