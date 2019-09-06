@@ -89,24 +89,24 @@ class ConvAutoencoder(nn.Module):
         x = self.enc_cnn_2(x) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
         x = F.relu(F.max_pool2d(x,kernel_size=2)) #38/2 = 19 -> [19,19,8]
         x = x.view([images.size(0), -1])
-        x = self.enc_linear_1(x) 
+        x = F.relu(self.enc_linear_1(x))
         x = F.dropout(x,p=0.5)
-        x = self.enc_linear_2(x)
+        x = F.relu(self.enc_linear_2(x))
         x = F.dropout(x,p=0.5)
-        # x = self.enc_linear_3(x)
+        code = self.enc_linear_3(x)
         # x = F.dropout(x,p=0.5)
         # x = self.enc_linear_4(x)
         # # x = F.dropout(x,p=0.5)
-        encoded = self.enc_linear_5(x)
+        # encoded = self.enc_linear_5(x)
         #encoded = F.dropout(x,p=0.5)
-        return encoded
+        return code
 
     def decoder(self, code):
         x = F.relu(self.dec_linear_1(code))
-        x = self.dec_linear_2(x)
-        x = self.dec_linear_3(x)
-        x = self.dec_linear_4(x)
-        x = x.view([code.size(0), 1, 436, 436])
+        x = F.relu(self.dec_linear_2(x))
+        x = F.relu(self.dec_linear_3(x))
+        # x = self.dec_linear_4(x)
+        # x = x.view([code.size(0), 1, 436, 436])
         x = F.relu(self.dec_convT_1(x))
         # x = F.relu(self.dec_convT_2(x))
         out = F.tanh(self.dec_convT_2(x))
