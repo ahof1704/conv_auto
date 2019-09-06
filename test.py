@@ -47,7 +47,7 @@ class ConvAutoencoder(nn.Module):
         #Add transpose conv layers, with relu actication function
         x = F.relu(self.t_conv1(x))
         # output layer (with sigmoid for scaling from 0 to 1)
-        x = F.sigmoid(self.t_conv2(x))
+        x = torch.sigmoid(self.t_conv2(x))
 
         return x
 
