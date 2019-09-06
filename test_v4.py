@@ -20,6 +20,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 from   torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.utils import save_image
+from torchsummary import summary
 #import torch.sigmoid as sig
 import os
 
@@ -195,9 +196,11 @@ plt.savefig('USV_example.png')
 
 #initialize the NN
 #model = ConvAutoencoder()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # PyTorch v0.4.0
 code_size = 12
-model = ConvAutoencoder(code_size)
-print(model)
+model = ConvAutoencoder(code_size).to(device)
+#print(model)
+summary(model, input_size=(1, 436, 436))
 
 ## Training the NN ##
 #Specify Loss Function
