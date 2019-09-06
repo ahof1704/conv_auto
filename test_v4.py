@@ -65,7 +65,7 @@ class ConvAutoencoder(nn.Module):
         self.dec_linear_1 = nn.Linear(in_features=12, out_features=2000)
         # nn.ReLU(True),
         self.dec_linear_2 = nn.Linear(in_features=2000, out_features=436 * 436)
-        self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2)  # b, 16, 5, 5
+        self.dec_convT_1 = nn.ConvTranspose2d(1, 16, 3, stride=2)  # b, 16, 5, 5
         # nn.ReLU(True),
         self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1)  # b, 8, 15, 15
         # nn.ReLU(True),
@@ -99,11 +99,11 @@ class ConvAutoencoder(nn.Module):
 
     def decoder(self, encoded):
         x = F.relu(self.dec_linear_1(encoded))
-        x = F.tanh(self.dec_linear_2(x))
-        decoded = x.view([encoded.size(0), 1, 436, 436])
-#        x = F.relu(self.dec_convT_1(x))
-#        x = F.relu(self.dec_convT_2(x))
-#        x = F.tanself.dec_convT_3(x)
+        x = self.dec_linear_2(x)
+        x = x.view([encoded.size(0), 1, 436, 436])
+        x = F.relu(self.dec_convT_1(x))
+        x = F.relu(self.dec_convT_2(x))
+        decoded = F.tanh(self.dec_convT_3(x))
 #        decoded = F.tanh(x)
 
         return decoded
@@ -192,12 +192,12 @@ plt.savefig('USV_example.png')
 #initialize the NN
 #model = ConvAutoencoder()
 code_size = 12
-model = ConvAutoencoder(code_size).cuda()
+model = ConvAutoencoder(code_size)
 print(model)
 
 ## Training the NN ##
 #Specify Loss Function
-criterion = nn.MSELoss()
+criterion = nn.BCELoss()
 
 #Specify optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -215,12 +215,12 @@ if phase == 'train':
         for data in dataloaders['train']:
             # _ stands in for labels, here no need t flatten images
             images, _ = data
-            images = Variable(images).cuda()
+            images = Variable(images)
             #Clear the gradients of all optimized variables
             optimizer.zero_grad()
             #Forward pass: compute predicted outputs by passing inputs to the model
-            outputs = model(images)
-            print('Dim of output image: {}\n'.format(outputs.shape))
+            outputs, encoded = model(Variable(images))
+#            print('Dim of output image: {}\n'.format(outputs.shape))
             #Calculate the loss
             loss = criterion(outputs, images)
             #backward pass: compute graditent of the loss with respect to the model parameters
@@ -239,9 +239,9 @@ if phase == 'train':
             best_model_wts = copy.deepcopy(model.state_dict())
             torch.save(best_model_wts, 'best_net_test3.pth')
 
-        if epoch % 5 == 0:
-                pic = to_img(outputs.cpu().data)
-                save_image(pic, './dc_img/image_{}.png'.format(epoch))
+#        if epoch % 5 == 0:
+ #               pic = to_img(outputs.cpu().data)
+  #              save_image(pic, './dc_img/image_{}.png'.format(epoch))
 
 else:
     model.load_state_dict(torch.load('best_net_test3.pth'))
