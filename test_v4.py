@@ -63,20 +63,23 @@ class ConvAutoencoder(nn.Module):
         # )
         # self.decoder = nn.Sequential(
         # add the inverse of the 12dim fc layer
-        self.dec_linear_1 = nn.Linear(in_features=12, out_features=2000)
+        self.dec_linear_1 = nn.Linear(in_features=12, out_features=50)
         # nn.ReLU(True),
-        self.dec_linear_2 = nn.Linear(in_features=2000, out_features=436 * 436)
-        self.dec_convT_1 = nn.ConvTranspose2d(1, 16, 3, stride=2)  # b, 16, 5, 5
+        self.dec_linear_2 = nn.Linear(in_features=50, out_features=500)
+        self.dec_linear_3 = nn.Linear(in_features=500, out_features=2000)
+        self.dec_linear_3 = nn.Linear(in_features=2000, out_features=4000)
+        self.dec_linear_4 = nn.Linear(in_features=4000, out_features=10368)
+        self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2, padding=1)  # b, 16, 5, 5
         # nn.ReLU(True),
-        self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1)  # b, 8, 15, 15
+        self.dec_convT_2 = nn.ConvTranspose2d(16, 1, 3, stride=3, padding=1)  # b, 8, 15, 15
         # nn.ReLU(True),
-        self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1)  # b, 1, 28, 28
+        # self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1)  # b, 1, 28, 28
         # nn.Tanh()
         # )
 
     def forward(self, images):
         code = self.encoder(images)
-        out = self.decoder(encoded)
+        out = self.decoder(code)
         return out, code
 
     def encoder(self, images):
@@ -101,10 +104,12 @@ class ConvAutoencoder(nn.Module):
     def decoder(self, encoded):
         x = F.relu(self.dec_linear_1(encoded))
         x = self.dec_linear_2(x)
+        x = self.dec_linear_3(x)
+        x = self.dec_linear_4(x)
         x = x.view([encoded.size(0), 1, 436, 436])
         x = F.relu(self.dec_convT_1(x))
-        x = F.relu(self.dec_convT_2(x))
-        decoded = F.tanh(self.dec_convT_3(x))
+        # x = F.relu(self.dec_convT_2(x))
+        decoded = F.tanh(self.dec_convT_2(x))
 #        decoded = F.tanh(x)
 
         return decoded
@@ -214,15 +219,16 @@ if phase == 'train':
         
         #Train the model
         #for data in dataloaders['train']:
-        for i, (images, _) in dataloaders['train']:
+        for i, data in dataloaders['train']:
             # _ stands in for labels, here no need t flatten images
-            # images, _ = data
-            #images = Variable(images)
+            images, _ = data
+            images = Variable(images)
+            print('Dim of input image: {}\n'.format(images.shape))
             #Clear the gradients of all optimized variables
             out, code = model(Variable(images))
             optimizer.zero_grad()
             #Forward pass: compute predicted outputs by passing inputs to the model
-#            print('Dim of output image: {}\n'.format(outputs.shape))
+            print('Dim of output image: {}\n'.format(out.shape))
             #Calculate the loss
             loss = criterion(out, images)
             #backward pass: compute graditent of the loss with respect to the model parameters
