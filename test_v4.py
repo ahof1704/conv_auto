@@ -5,6 +5,7 @@ Created on Tue Aug 27 10:32:22 2019
 
 @author: antonio
 Just playing around with some autoenconders
+example: https://gist.github.com/okiriza/16ec1f29f5dd7b6d822a0a3f2af39274
 
 """
 # matplotlib inline
@@ -74,9 +75,9 @@ class ConvAutoencoder(nn.Module):
         # )
 
     def forward(self, images):
-        encoded = self.encoder(images)
-        decoded = self.decoder(encoded)
-        return encoded, decoded
+        code = self.encoder(images)
+        out = self.decoder(encoded)
+        return out, code
 
     def encoder(self, images):
         x = self.enc_cnn_1(images)
@@ -212,17 +213,18 @@ if phase == 'train':
         train_loss = 0.0
         
         #Train the model
-        for data in dataloaders['train']:
+        #for data in dataloaders['train']:
+        for i, (images, _) in dataloaders['train']:
             # _ stands in for labels, here no need t flatten images
-            images, _ = data
-            images = Variable(images)
+            # images, _ = data
+            #images = Variable(images)
             #Clear the gradients of all optimized variables
+            out, code = model(Variable(images))
             optimizer.zero_grad()
             #Forward pass: compute predicted outputs by passing inputs to the model
-            outputs, encoded = model(Variable(images))
 #            print('Dim of output image: {}\n'.format(outputs.shape))
             #Calculate the loss
-            loss = criterion(outputs, images)
+            loss = criterion(out, images)
             #backward pass: compute graditent of the loss with respect to the model parameters
             loss.backward()
             # Perform single optimization step (parameter update)
