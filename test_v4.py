@@ -5,7 +5,7 @@ Created on Tue Aug 27 10:32:22 2019
 
 @author: antonio
 Just playing around with some autoenconders
-example: https://gist.github.com/okiriza/16ec1f29f5dd7b6d822a0a3f2af39274
+example: https://github.com/yangzhangalmo/pytorch-examples/blob/master/ae_cnn.py
 
 """
 # matplotlib inline
@@ -42,7 +42,7 @@ class ConvAutoencoder(nn.Module):
         self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
         # nn.ReLU(True),
         # nn.MaxPool2d(2, stride=2),  # b, 16, 5, 5 -> 436/2 = 218
-        self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1)  # b, 8, 3, 3
+        self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=2)  # b, 8, 3, 3
         # nn.ReLU(True),
         # nn.MaxPool2d(2, stride=1)  # b, 8, 2, 2 -> 218/2 = 109
         # add regularuzation 
@@ -50,26 +50,26 @@ class ConvAutoencoder(nn.Module):
         # add fc layer to 100dim here or another conv
         # check for getting enconding from conv auto enconder (how to check the latent space)
         # 109 * 8 * 8 = 6976
-        self.enc_linear_1 = nn.Linear(in_features=10368, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
+        self.enc_linear_1 = nn.Linear(in_features=2888, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
         # nn.Dropout(p=0.5)                    #Dropout used to reduce overfitting
-        self.enc_linear_2 = nn.Linear(in_features=4000, out_features=2000)
+        self.enc_linear_2 = nn.Linear(in_features=4000, out_features=100)
         # nn.Dropout(p=0.5)
-        self.enc_linear_3 = nn.Linear(in_features=2000, out_features=500)
+        self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
         # nn.Dropout(p=0.5)
-        self.enc_linear_4 = nn.Linear(in_features=500, out_features=50)
+        # self.enc_linear_4 = nn.Linear(in_features=500, out_features=50)
         # nn.Dropout(p=0.5)
-        self.enc_linear_5 = nn.Linear(in_features=50, out_features=12)    #Since there were so many features, I decided to use 45 layers to get output layers. You can increase the kernels in Maxpooling to reduce image further and reduce number of hidden linear layers.
+        # self.enc_linear_5 = nn.Linear(in_features=50, out_features=self.code_size)    #Since there were so many features, I decided to use 45 layers to get output layers. You can increase the kernels in Maxpooling to reduce image further and reduce number of hidden linear layers.
        
         # )
         # self.decoder = nn.Sequential(
         # add the inverse of the 12dim fc layer
-        self.dec_linear_1 = nn.Linear(in_features=12, out_features=50)
+        self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=100)
         # nn.ReLU(True),
-        self.dec_linear_2 = nn.Linear(in_features=50, out_features=500)
-        self.dec_linear_3 = nn.Linear(in_features=500, out_features=2000)
-        self.dec_linear_3 = nn.Linear(in_features=2000, out_features=4000)
-        self.dec_linear_4 = nn.Linear(in_features=4000, out_features=10368)
-        self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2, padding=1)  # b, 16, 5, 5
+        self.dec_linear_2 = nn.Linear(in_features=100, out_features=4000)
+        self.dec_linear_3 = nn.Linear(in_features=4000, out_features=2888)
+        # self.dec_linear_3 = nn.Linear(in_features=2000, out_features=4000)
+        # self.dec_linear_4 = nn.Linear(in_features=4000, out_features=10368)
+        self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2, padding=2)  # b, 16, 5, 5
         # nn.ReLU(True),
         self.dec_convT_2 = nn.ConvTranspose2d(16, 1, 3, stride=3, padding=1)  # b, 8, 15, 15
         # nn.ReLU(True),
@@ -83,36 +83,34 @@ class ConvAutoencoder(nn.Module):
         return out, code
 
     def encoder(self, images):
-        x = self.enc_cnn_1(images)
-        x = F.relu(F.max_pool2d(x,kernel_size=2, stride=2)) #436/2 = 218
-        x = self.enc_cnn_2(x)
-        x = F.relu(F.max_pool2d(x,kernel_size=2, stride=1)) #218/2 = 109
+        x = self.enc_cnn_1(images) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
+        x = F.relu(F.max_pool2d(x,kernel_size=2)) #146/2 = 73
+        x = self.enc_cnn_2(x) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
+        x = F.relu(F.max_pool2d(x,kernel_size=2)) #38/2 = 19 -> [19,19,8]
         x = x.view([images.size(0), -1])
-        x = self.enc_linear_1(x)
+        x = self.enc_linear_1(x) 
         x = F.dropout(x,p=0.5)
         x = self.enc_linear_2(x)
         x = F.dropout(x,p=0.5)
-        x = self.enc_linear_3(x)
-        x = F.dropout(x,p=0.5)
-        x = self.enc_linear_4(x)
-        x = F.dropout(x,p=0.5)
-        x = self.enc_linear_5(x)
-        encoded = F.dropout(x,p=0.5)
-
+        # x = self.enc_linear_3(x)
+        # x = F.dropout(x,p=0.5)
+        # x = self.enc_linear_4(x)
+        # # x = F.dropout(x,p=0.5)
+        encoded = self.enc_linear_5(x)
+        #encoded = F.dropout(x,p=0.5)
         return encoded
 
-    def decoder(self, encoded):
-        x = F.relu(self.dec_linear_1(encoded))
+    def decoder(self, code):
+        x = F.relu(self.dec_linear_1(code))
         x = self.dec_linear_2(x)
         x = self.dec_linear_3(x)
         x = self.dec_linear_4(x)
-        x = x.view([encoded.size(0), 1, 436, 436])
+        x = x.view([code.size(0), 1, 436, 436])
         x = F.relu(self.dec_convT_1(x))
         # x = F.relu(self.dec_convT_2(x))
-        decoded = F.tanh(self.dec_convT_2(x))
+        out = F.tanh(self.dec_convT_2(x))
 #        decoded = F.tanh(x)
-
-        return decoded
+        return out
 
 
 
