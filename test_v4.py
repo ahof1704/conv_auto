@@ -34,6 +34,9 @@ def to_img(x):
     x = x.view(x.size(0), 1, 436, 436)
     return x
 
+class Print(nn.Module):
+    def __init__(self):
+        super(Print, self).__init__()
 
 class ConvAutoencoder(nn.Module):
     def __init__(self, code_size):
@@ -84,10 +87,15 @@ class ConvAutoencoder(nn.Module):
         return out, code
 
     def encoder(self, images):
+        print(images.shape)
         x = self.enc_cnn_1(images) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
+        print(x.shape)
         x = F.relu(F.max_pool2d(x,kernel_size=2)) #146/2 = 73
+        print(x.shape)
         x = self.enc_cnn_2(x) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
+        print(x.shape)
         x = F.relu(F.max_pool2d(x,kernel_size=2)) #38/2 = 19 -> [19,19,8]
+        print(x.shape)
         x = x.view([images.size(0), -1])
         x = F.relu(self.enc_linear_1(x))
         x = F.dropout(x,p=0.5)
@@ -106,7 +114,7 @@ class ConvAutoencoder(nn.Module):
         x = F.relu(self.dec_linear_2(x))
         x = F.relu(self.dec_linear_3(x))
         # x = self.dec_linear_4(x)
-        # x = x.view([code.size(0), 1, 436, 436])
+        x = x.view([1, 1, 436, 436])
         x = F.relu(self.dec_convT_1(x))
         # x = F.relu(self.dec_convT_2(x))
         out = F.tanh(self.dec_convT_2(x))
