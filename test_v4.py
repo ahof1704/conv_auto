@@ -6,6 +6,7 @@ Created on Tue Aug 27 10:32:22 2019
 @author: antonio
 Just playing around with some autoenconders
 example: https://github.com/yangzhangalmo/pytorch-examples/blob/master/ae_cnn.py
+https://gist.github.com/okiriza/fe874412f540a6f7eb0111c4f6649afe
 
 """
 # matplotlib inline
@@ -192,6 +193,7 @@ import matplotlib.pyplot as plt
 # obtain one batch of training images
 dataiter = iter(dataloaders['train'])
 images, labels = dataiter.next()
+print('Dim of raw sample image: {}\n'.format(images.shape))
 images = images.numpy()
 
 # get one image from the batch
