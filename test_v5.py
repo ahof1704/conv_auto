@@ -83,57 +83,57 @@ class ConvAutoencoder(nn.Module):
         # )
 
     def forward(self, images):
-        code = self.encoder(images)
-        out = self.decoder(code)
+        code,indices1,indices2 = self.encoder(images)
+        out = self.decoder(code,indices1,indices2)
         return out, code
 
     def encoder(self, images):
-        print(images.shape)
+#        print(images.shape)
         x = self.enc_cnn_1(images) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
-        print(x.shape)
-        x, indices1 = F.max_pool2d(x,kernel_size=2, return_indices=Tue) #indices for unpooling, #146/2 = 73
-        print(x.shape)
+#        print(x.shape)
+        x, indices1 = F.max_pool2d(x,kernel_size=2, return_indices=True) #indices for unpooling, #146/2 = 73
+#        print(x.shape)
         x = F.relu(self.enc_cnn_2(x)) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
-        print(x.shape)
+#        print(x.shape)
         x, indices2 = F.max_pool2d(x,kernel_size=2, return_indices=True) #38/2 = 19 -> [19,19,8]
-        print(x.shape)
+#        print(x.shape)
         x = x.view([images.size(0), -1])
-        print(x.shape)
+#        print(x.shape)
         x = F.relu(self.enc_linear_1(x))
-        print(x.shape)
+#        print(x.shape)
         x = F.dropout(x,p=0.5)
-        print(x.shape)
+#        print(x.shape)
         x = F.relu(self.enc_linear_2(x))
-        print(x.shape)
+#        print(x.shape)
         x = F.dropout(x,p=0.5)
-        print(x.shape)
+#        print(x.shape)
         code = self.enc_linear_3(x)
-        print(code.shape)
+#        print(code.shape)
         # x = F.dropout(x,p=0.5)
         # x = self.enc_linear_4(x)
         # # x = F.dropout(x,p=0.5)
         # encoded = self.enc_linear_5(x)
         #encoded = F.dropout(x,p=0.5)
-        return code
+        return code, indices1, indices2
 
-    def decoder(self, code):
-        print(code.shape)
+    def decoder(self, code, indices1, indices2):
+#        print(code.shape)
         x = F.relu(self.dec_linear_1(code))
-        print(x.shape)
+#        print(x.shape)
 #        x = F.relu(self.dec_linear_2(x))
         x = F.relu(self.dec_linear_3(x))
-        print(x.shape)
+#        print(x.shape)
         # x = self.dec_linear_4(x)
-        x = x.view([128, 8, 19, 19])
-        print(x.shape)
+        x = x.view([code.shape[0], 8, 19, 19])
+ #       print(x.shape)
         x = F.max_unpool2d(x, indices2, 2)
         x = F.relu(self.dec_convT_1(x))
-        print(x.shape)
+ #       print(x.shape)
         # x = F.relu(self.dec_convT_2(x))
-        x = F.max_unpool2d(out, indices1, 2)
-        print(x.shape)
-        out = F.tanh(self.dec_convT_2(x))
-        print(out.shape)
+        x = F.max_unpool2d(x, indices1, 2)
+#        print(x.shape)
+        out = torch.sigmoid(self.dec_convT_2(x))
+#        print(out.shape)
 #        decoded = F.tanh(x)
         return out
 
@@ -160,8 +160,8 @@ curr_path	 = os.getcwd()
 dataset_dir      = os.path.join(curr_path, "data/All_samples_noise")
 batch_size       = 128
 validation_split = .1 # -- split training set into train/val sets
-epochs           = 100
-print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}'.format(curr_path, dataset_dir, batch_size, validation_split, epochs))
+n_epochs           = 30
+print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}'.format(curr_path, dataset_dir, batch_size, validation_split, n_epochs))
 
 # -- transforms to use
 normalize = transforms.Normalize(mean=[0.5],
@@ -217,7 +217,7 @@ print('Dim of sample image: {}\n'.format(img.shape))
 fig = plt.figure(figsize = (5,5)) 
 ax = fig.add_subplot(111)
 ax.imshow(img, cmap='gray')
-plt.savefig('USV_example.png')
+plt.savefig('USV_example_v5.png')
 
 #initialize the NN
 #model = ConvAutoencoder()
@@ -225,17 +225,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # PyTorch 
 code_size = 12
 model = ConvAutoencoder(code_size).to(device)
 #print(model)
-#summary(model, input_size=(1, 436, 436))
+#summary(model, input_size=(batch_size, 1, 436, 436))
 
 ## Training the NN ##
 #Specify Loss Function
-criterion = nn.BCELoss()
+criterion = nn.MSELoss()
 
 #Specify optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 #Number of epoch for training
-n_epochs = 30 #Make it stop before overfitting
+#n_epochs = 10 #Make it stop before overfitting
 best_loss = 100.0
 
 if phase == 'train':
@@ -249,12 +249,12 @@ if phase == 'train':
             # _ stands in for labels, here no need t flatten images
             images, _ = data
             images = Variable(images).to(device)
-            print('Dim of input image: {}\n'.format(images.shape))
+#            print('Dim of input image: {}\n'.format(images.shape))
             #Clear the gradients of all optimized variables
             out, code = model(Variable(images))
             optimizer.zero_grad()
             #Forward pass: compute predicted outputs by passing inputs to the model
-            print('Dim of output image: {}\n'.format(out.shape))
+#            print('Dim of output image: {}\n'.format(out.shape))
             #Calculate the loss
             loss = criterion(out, images)
             #backward pass: compute graditent of the loss with respect to the model parameters
@@ -271,11 +271,11 @@ if phase == 'train':
         if train_loss < best_loss:
             best_loss = train_loss
             best_model_wts = copy.deepcopy(model.state_dict())
-            torch.save(best_model_wts, 'best_net_test3.pth')
+            torch.save(best_model_wts, 'best_net_test5.pth')
 
-#        if epoch % 5 == 0:
- #               pic = to_img(outputs.cpu().data)
-  #              save_image(pic, './dc_img/image_{}.png'.format(epoch))
+        if epoch % 5 == 0:
+            pic = to_img(out.cpu().data)
+            save_image(pic, './dc_img/image_{}.png'.format(epoch))
 
 else:
     model.load_state_dict(torch.load('best_net_test3.pth'))
@@ -288,14 +288,14 @@ images = Variable(images).cuda()
 
 #Get sample outputs
 
-output = model(images)
+output, _ = model(images)
 #Prep images for display
-images = images.numpy()
+images = images.cpu().numpy()
 
 #Output is resized in a batch of images
 output = output.view(batch_size,1,436,436)
 #use deatch when it's an output that requires grad
-output = output.detach().numpy()
+output = output.detach().cpu().numpy()
 
 #Plot the first ten input images and then reconstruct images
 fig, axes = plt.subplots(nrows=2, ncols=10, sharex=True, sharey=True, figsize=(25,4))
@@ -307,5 +307,5 @@ for images, row in zip([images, output], axes):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-plt.savefig('conv_auto_output_test3.png')
+plt.savefig('conv_auto_output_test5.png')
 
