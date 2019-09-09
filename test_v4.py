@@ -68,9 +68,9 @@ class ConvAutoencoder(nn.Module):
         # )
         # self.decoder = nn.Sequential(
         # add the inverse of the 12dim fc layer
-        self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=100)
+        self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=4000)
         # nn.ReLU(True),
-        self.dec_linear_2 = nn.Linear(in_features=100, out_features=4000)
+#        self.dec_linear_2 = nn.Linear(in_features=100, out_features=4000)
         self.dec_linear_3 = nn.Linear(in_features=4000, out_features=2888)
         # self.dec_linear_3 = nn.Linear(in_features=2000, out_features=4000)
         # self.dec_linear_4 = nn.Linear(in_features=4000, out_features=10368)
@@ -98,11 +98,17 @@ class ConvAutoencoder(nn.Module):
         x = F.relu(F.max_pool2d(x,kernel_size=2)) #38/2 = 19 -> [19,19,8]
         print(x.shape)
         x = x.view([images.size(0), -1])
+        print(x.shape)
         x = F.relu(self.enc_linear_1(x))
+        print(x.shape)
         x = F.dropout(x,p=0.5)
+        print(x.shape)
         x = F.relu(self.enc_linear_2(x))
+        print(x.shape)
         x = F.dropout(x,p=0.5)
+        print(x.shape)
         code = self.enc_linear_3(x)
+        print(code.shape)
         # x = F.dropout(x,p=0.5)
         # x = self.enc_linear_4(x)
         # # x = F.dropout(x,p=0.5)
@@ -111,14 +117,20 @@ class ConvAutoencoder(nn.Module):
         return code
 
     def decoder(self, code):
+        print(code.shape)
         x = F.relu(self.dec_linear_1(code))
-        x = F.relu(self.dec_linear_2(x))
+        print(x.shape)
+#        x = F.relu(self.dec_linear_2(x))
         x = F.relu(self.dec_linear_3(x))
+        print(x.shape)
         # x = self.dec_linear_4(x)
-        x = x.view([1, 1, 436, 436])
+        x = x.view([128, 8, 19, 19])
+        print(x.shape)
         x = F.relu(self.dec_convT_1(x))
+        print(x.shape)
         # x = F.relu(self.dec_convT_2(x))
         out = F.tanh(self.dec_convT_2(x))
+        print(out.shape)
 #        decoded = F.tanh(x)
         return out
 
@@ -210,7 +222,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # PyTorch 
 code_size = 12
 model = ConvAutoencoder(code_size).to(device)
 #print(model)
-summary(model, input_size=(1, 436, 436))
+#summary(model, input_size=(1, 436, 436))
 
 ## Training the NN ##
 #Specify Loss Function
@@ -230,10 +242,10 @@ if phase == 'train':
         
         #Train the model
         #for data in dataloaders['train']:
-        for i, data in dataloaders['train']:
+        for data in dataloaders['train']:
             # _ stands in for labels, here no need t flatten images
             images, _ = data
-            images = Variable(images)
+            images = Variable(images).to(device)
             print('Dim of input image: {}\n'.format(images.shape))
             #Clear the gradients of all optimized variables
             out, code = model(Variable(images))
