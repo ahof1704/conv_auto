@@ -22,15 +22,18 @@ import torch.nn.functional as F
 from   torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.utils import save_image
 from torchsummary import summary
-#import torch.sigmoid as sig
 import os
+
 
 if not os.path.exists('./dc_img'):
     os.mkdir('./dc_img')
 
 ## Choose on structure
-# 'only_convs' -> two conv layers for encoding and two for decoding. No dropout or fully connected
-structure_net = 'only_convs'
+# 'only_convs_with_maxpool' -> two conv layers for encoding and two for decoding. No dropout or fully connected
+# 'convs_withDense_withUnpool' -> with unpool layers 
+# 'convs_simple' -> like the one I did first
+# 'convs_simple_two_dense' -> Adding two fcs in the middle
+structure_net = 'only_convs_with_maxpool'
 
 def to_img(x):
     x = 0.5 * (x + 1)
@@ -42,18 +45,13 @@ class Print(nn.Module):
     def __init__(self):
         super(Print, self).__init__()
 
-if structure_net == 'only_convs'
+if structure_net == 'only_convs_with_maxpool':
     class ConvAutoencoder(nn.Module):
         def __init__(self, code_size):
             self.code_size = code_size
             super().__init__()
             self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
             self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=2)  # b, 8, 3, 3
-            # add regularuzation 
-            # Add dropout after ReLU
-            # add fc layer to 100dim here or another conv
-            # check for getting enconding from conv auto enconder (how to check the latent space)
-            # 109 * 8 * 8 = 6976
             self.enc_linear_1 = nn.Linear(in_features=2888, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
             self.enc_linear_2 = nn.Linear(in_features=4000, out_features=100)
             self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
@@ -68,14 +66,14 @@ if structure_net == 'only_convs'
             return out, code
 
         def encoder(self, images):
-            print(images.shape)
+            # print(images.shape)
             x = self.enc_cnn_1(images) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
-            print(x.shape)
+            # print(x.shape)
             x, indices1 = F.max_pool2d(x,kernel_size=2, return_indices=True) #indices for unpooling, #146/2 = 73
-            print(x.shape)
+            # print(x.shape)
             x = F.leaky_relu(x)
             x = self.enc_cnn_2(x) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
-            print(x.shape)
+            # print(x.shape)
             x, indices2 = F.max_pool2d(x,kernel_size=2, return_indices=True) #38/2 = 19 -> [19,19,8]
             code = F.leaky_relu(x)
             # print(x.shape)
@@ -90,11 +88,11 @@ if structure_net == 'only_convs'
             # x = F.dropout(x,p=0.5)
             # print(x.shape)
             # code = self.enc_linear_3(x)
-            print(code.shape)
+            # print(code.shape)
             return code, indices1, indices2
 
         def decoder(self, code, indices1, indices2):
-            print(code.shape)
+            # print(code.shape)
             # x = F.relu(self.dec_linear_1(code))
             # print(x.shape)
             # x = F.relu(self.dec_linear_2(x))
@@ -105,16 +103,225 @@ if structure_net == 'only_convs'
             # print(x.shape)
             x = F.max_unpool2d(code, indices2, 2)
             x = F.leaky_relu(self.dec_convT_1(x))
-            print(x.shape)
+            # print(x.shape)
             # x = F.relu(self.dec_convT_2(x))
             x = F.max_unpool2d(x, indices1, 2)
     #        print(x.shape)
             out = torch.sigmoid(self.dec_convT_2(x))
-            print(out.shape)
+            # print(out.shape)
     #        decoded = F.tanh(x)
             return out
 
+elif structure_net == 'convs_withDense_withUnpool':
+    class ConvAutoencoder(nn.Module):
+        def __init__(self, code_size):
+            self.code_size = code_size
+            super().__init__()
+            self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
+            self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=2)  # b, 8, 3, 3
+            self.enc_linear_1 = nn.Linear(in_features=2888, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
+            self.enc_linear_2 = nn.Linear(in_features=4000, out_features=self.code_size)
+            # self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
+            self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=4000)
+            self.dec_linear_2 = nn.Linear(in_features=4000, out_features=2888)
+            self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2, padding=2)  # b, 16, 5, 5
+            self.dec_convT_2 = nn.ConvTranspose2d(16, 1, 3, stride=3, padding=1)  # b, 8, 15, 15
+            
+        def forward(self, images):
+            code,indices1,indices2 = self.encoder(images)
+            out = self.decoder(code,indices1,indices2)
+            return out, code
 
+        def encoder(self, images):
+            #print(images.shape)
+            x = self.enc_cnn_1(images) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
+            #print(x.shape)
+            x, indices1 = F.max_pool2d(x,kernel_size=2, return_indices=True) #indices for unpooling, #146/2 = 73
+            #print(x.shape)
+            x = F.leaky_relu(x)
+            x = self.enc_cnn_2(x) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
+            #print(x.shape)
+            x, indices2 = F.max_pool2d(x,kernel_size=2, return_indices=True) #38/2 = 19 -> [19,19,8]
+            x = F.leaky_relu(x)
+            #print(x.shape)
+            x = x.view([images.size(0), -1])
+            #print(x.shape)
+            x = F.leaky_relu(self.enc_linear_1(x))
+            #print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            code = self.enc_linear_2(x)
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            # code = self.enc_linear_3(x)
+            #print(code.shape)
+            return code, indices1, indices2
+
+        def decoder(self, code, indices1, indices2):
+            #print(code.shape)
+            x = F.leaky_relu(self.dec_linear_1(code))
+            #print(x.shape)
+            x = F.leaky_relu(self.dec_linear_2(x))
+            # x = F.relu(self.dec_linear_3(x))
+            #print(x.shape)
+            # x = self.dec_linear_4(x)
+            x = x.view([code.shape[0], 8, 19, 19])
+            #print('Dim of x: {}'.format(x.shape))
+            #print('Dim indices2: {}'.format(indices2.shape))
+            x = F.max_unpool2d(x, indices2, 2)
+            x = F.leaky_relu(self.dec_convT_1(x)) #W2 =(W-1)*S-2P+K = (19-1)*2-2*2+3
+            #print('Dim of x: {}'.format(x.shape))
+            x = F.max_unpool2d(x, indices1, 2)
+            #print('Dim indices1: {}'.format(indices1.shape))
+            out = F.torch.sigmoid(self.dec_convT_2(x))
+                        
+            # print(x.shape)
+            # out = torch.sigmoid(self.dec_convT_2(x))
+            #print(out.shape)
+    #        decoded = F.tanh(x)
+            return out
+
+elif structure_net == 'convs_simple':
+    class ConvAutoencoder(nn.Module):
+        def __init__(self, code_size):
+            self.code_size = code_size
+            super().__init__()
+            self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
+            self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1)  # b, 8, 3, 3
+            # self.enc_linear_1 = nn.Linear(in_features=2888, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
+            # self.enc_linear_2 = nn.Linear(in_features=4000, out_features=self.code_size)
+            # self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
+            # self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=4000)
+            # self.dec_linear_2 = nn.Linear(in_features=4000, out_features=2888)
+            self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2)  # b, 16, 5, 5
+            self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1)  # b, 8, 15, 15
+            self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1)  # b, 8, 15, 15
+            
+        def forward(self, images):
+            code = self.encoder(images)
+            out = self.decoder(code)
+            return out, code
+
+        def encoder(self, images):
+            # print(images.shape)
+            x = F.leaky_relu(self.enc_cnn_1(images)) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=2) #indices for unpooling, #146/2 = 73
+            # print(x.shape)
+            # x = F.leaky_relu(x)
+            x = F.leaky_relu( self.enc_cnn_2(x)) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
+            # print(x.shape)
+            code = F.max_pool2d(x, kernel_size=2, stride=1) #38/2 = 19 -> [19,19,8]
+            # x = F.leaky_relu(x)
+            #print(x.shape)
+            # x = x.view([images.size(0), -1])
+            #print(x.shape)
+            # x = F.leaky_relu(self.enc_linear_1(x))
+            #print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            # code = self.enc_linear_2(x)
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            # code = self.enc_linear_3(x)
+            # print(code.shape)
+            return code
+
+        def decoder(self, code):
+            # print(code.shape)
+            # x = F.leaky_relu(self.dec_linear_1(code))
+            #print(x.shape)
+            # x = F.leaky_relu(self.dec_linear_2(x))
+            # x = F.relu(self.dec_linear_3(x))
+            #print(x.shape)
+            # x = self.dec_linear_4(x)
+            # x = x.view([code.shape[0], 8, 19, 19])
+            #print('Dim of x: {}'.format(x.shape))
+            #print('Dim indices2: {}'.format(indices2.shape))
+            # x = F.max_unpool2d(x, indices2, 2)
+            x = F.leaky_relu(self.dec_convT_1(code)) #W2 =(W-1)*S-2P+K = (19-1)*2-2*2+3
+            # print(x.shape)
+            # x = F.max_unpool2d(x, indices1, 2)
+            #print('Dim indices1: {}'.format(indices1.shape))
+            x = F.leaky_relu(self.dec_convT_2(x))           
+            # print(x.shape)
+            out = torch.sigmoid(self.dec_convT_3(x))
+            # print(out.shape)
+    #        decoded = F.tanh(x)
+            return out
+
+elif structure_net == 'convs_simple_two_dense':
+    class ConvAutoencoder(nn.Module):
+        def __init__(self, code_size):
+            self.code_size = code_size
+            super().__init__()
+            self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
+            self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1)  # b, 8, 3, 3
+            self.enc_linear_1 = nn.Linear(in_features=10368, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
+            self.enc_linear_2 = nn.Linear(in_features=4000, out_features=self.code_size)
+            # self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
+            self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=4000)
+            self.dec_linear_2 = nn.Linear(in_features=4000, out_features=10368)
+            self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2)  # b, 16, 5, 5
+            self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1)  # b, 8, 15, 15
+            self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1)  # b, 8, 15, 15
+            
+        def forward(self, images):
+            code = self.encoder(images)
+            out = self.decoder(code)
+            return out, code
+
+        def encoder(self, images):
+            # print('Enconding:')
+            # print(images.shape)
+            x = F.leaky_relu(self.enc_cnn_1(images)) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=2) #indices for unpooling, #146/2 = 73
+            # print(x.shape)
+            x = F.leaky_relu( self.enc_cnn_2(x)) #[73,73,16] -> W2 = (73-3+2*1)/2+1 = 38
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=1) #38/2 = 19 -> [19,19,8]
+            # x = F.leaky_relu(x)
+            # print(x.shape)
+            x = x.view([images.size(0), -1])
+            # print(x.shape)
+            x = F.leaky_relu(self.enc_linear_1(x))
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            code = self.enc_linear_2(x)
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            # code = self.enc_linear_3(x)
+            # print(code.shape)
+            return code
+
+        def decoder(self, code):
+            # print('Deconding:')
+            # print(code.shape)
+            x = F.leaky_relu(self.dec_linear_1(code))
+            # print(x.shape)
+            x = F.leaky_relu(self.dec_linear_2(x))
+            # x = F.relu(self.dec_linear_3(x))
+            # print(x.shape)
+            # x = self.dec_linear_4(x)
+            x = x.view([code.shape[0], 8, 36, 36])
+            # print(x.shape)
+            #print('Dim indices2: {}'.format(indices2.shape))
+            # x = F.max_unpool2d(x, indices2, 2)
+            x = F.leaky_relu(self.dec_convT_1(x)) #W2 =(W-1)*S-2P+K = (19-1)*2-2*2+3
+            # print(x.shape)
+            # x = F.max_unpool2d(x, indices1, 2)
+            #print('Dim indices1: {}'.format(indices1.shape))
+            x = F.leaky_relu(self.dec_convT_2(x))           
+            # print(x.shape)
+            out = torch.sigmoid(self.dec_convT_3(x))
+            # print(out.shape)
+    #        decoded = F.tanh(x)
+            return out
 
 
 # convert data to torch.FloatTensor
@@ -138,7 +345,7 @@ dataset_dir      = os.path.join(curr_path, "data/All_samples_noise")
 batch_size       = 128
 validation_split = .1 # -- split training set into train/val sets
 n_epochs           = 30
-print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}'.format(curr_path, dataset_dir, batch_size, validation_split, n_epochs))
+print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}\n structure: {}'.format(curr_path, dataset_dir, batch_size, validation_split, n_epochs, structure_net))
 
 # -- transforms to use
 normalize = transforms.Normalize(mean=[0.5],
@@ -191,18 +398,20 @@ images = images.numpy()
 # get one image from the batch
 img = np.squeeze(images[0])
 print('Dim of sample image: {}\n'.format(img.shape))
-fig = plt.figure(figsize = (5,5)) 
-ax = fig.add_subplot(111)
-ax.imshow(img, cmap='gray')
-plt.savefig('USV_example_v5.png')
+# fig = plt.figure(figsize = (5,5)) 
+# ax = fig.add_subplot(111)
+# ax.imshow(img, cmap='gray')
+# plt.savefig('USV_example_v5.png')
 
 #initialize the NN
 #model = ConvAutoencoder()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # PyTorch v0.4.0
 code_size = 100 #dimension of the latent space
 model = ConvAutoencoder(code_size).to(device)
+
 #print(model)
-#summary(model, input_size=(batch_size, 1, 436, 436))
+summary(model, input_size=(1, 436, 436))
+
 
 ## Training the NN ##
 #Specify Loss Function
@@ -248,14 +457,14 @@ if phase == 'train':
         if train_loss < best_loss:
             best_loss = train_loss
             best_model_wts = copy.deepcopy(model.state_dict())
-            torch.save(best_model_wts, 'best_net_test5.pth')
+            torch.save(best_model_wts, 'best_net_test' + structure_net + '.pth')
 
         if epoch % 5 == 0:
             pic = to_img(out.cpu().data)
             save_image(pic, './dc_img/image_{}.png'.format(epoch))
 
 else:
-    model.load_state_dict(torch.load('best_net_test3.pth'))
+    model.load_state_dict(torch.load('best_net_test' + structure_net + '.pth'))
 
 ## Checking results ##
 #Batch of test images
@@ -284,5 +493,6 @@ for images, row in zip([images, output], axes):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-plt.savefig('conv_auto_output_test5.png')
+fig.suptitle(structure_net + '_' +str(n_epochs) + 'epochs', fontsize=16)
+plt.savefig('conv_auto_output_' + structure_net + '_' +str(n_epochs) + 'epochs.png')
 
