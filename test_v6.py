@@ -7,7 +7,7 @@ Created on Tue Aug 27 10:32:22 2019
 Just playing around with some autoenconders
 example: https://github.com/yangzhangalmo/pytorch-examples/blob/master/ae_cnn.py
 https://gist.github.com/okiriza/fe874412f540a6f7eb0111c4f6649afe
-
+https://github.com/Bjarten/early-stopping-pytorch/blob/master/MNIST_Early_Stopping_example.ipynb
 """
 # matplotlib inline
 
@@ -23,6 +23,7 @@ from   torch.utils.data.sampler import SubsetRandomSampler
 from torchvision.utils import save_image
 from torchsummary import summary
 import os
+from pytorchtools import EarlyStopping
 
 
 if not os.path.exists('./dc_img'):
@@ -33,7 +34,10 @@ if not os.path.exists('./dc_img'):
 # 'convs_withDense_withUnpool' -> with unpool layers 
 # 'convs_simple' -> like the one I did first
 # 'convs_simple_two_dense' -> Adding two fcs in the middle
-structure_net = 'only_convs_with_maxpool'
+# 'convs_simple_3layersConv' -> adding one more conv layer to bring it to one channel
+# 'convs_simple_two_dense_v2' -> making the fc more narrow (500)
+# 'convs_simple_two_dense_v3' -> adding a 3rd conv for encoder and making the fc more narrow (500)
+structure_net = 'convs_simple_two_dense_v3'
 
 def to_img(x):
     x = 0.5 * (x + 1)
@@ -252,6 +256,81 @@ elif structure_net == 'convs_simple':
     #        decoded = F.tanh(x)
             return out
 
+elif structure_net == 'convs_simple_3layersConv':
+    class ConvAutoencoder(nn.Module):
+        def __init__(self, code_size):
+            self.code_size = code_size
+            super().__init__()
+            self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  
+            self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1)  
+            self.enc_cnn_3 = nn.Conv2d(8, 1, 4, stride=2, padding=1)  
+            # self.enc_linear_1 = nn.Linear(in_features=2888, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
+            # self.enc_linear_2 = nn.Linear(in_features=4000, out_features=self.code_size)
+            # self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
+            # self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=4000)
+            # self.dec_linear_2 = nn.Linear(in_features=4000, out_features=2888)
+            self.dec_convT_1 = nn.ConvTranspose2d(1, 8, 4, stride=2, padding=1)  
+            self.dec_convT_2 = nn.ConvTranspose2d(8, 16, 5, stride=2, padding=1) 
+            self.dec_convT_3 = nn.ConvTranspose2d(16, 1, 5, stride=2, padding=1) 
+            self.dec_convT_4 = nn.ConvTranspose2d(1, 1, 2, stride=3, padding=2)  
+            
+        def forward(self, images):
+            code = self.encoder(images)
+            out = self.decoder(code)
+            return out, code
+
+        def encoder(self, images):
+            # print(images.shape)
+            x = F.leaky_relu(self.enc_cnn_1(images)) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=2) #indices for unpooling, #146/2 = 73
+            # print(x.shape)
+            # x = F.leaky_relu(x)
+            x = F.leaky_relu( self.enc_cnn_2(x)) #[73,73,16] -> W2 = (73-3+2*1)/2+1 = 37
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=1) #38/2 = 19 -> [19,19,8]
+            # print(x.shape)
+            code = F.leaky_relu( self.enc_cnn_3(x)) #[36,36,8] -> W2 = (36-4+2*1)/2+1 = 38
+            # x = F.leaky_relu(x)
+            #print(x.shape)
+            # x = x.view([images.size(0), -1])
+            #print(x.shape)
+            # x = F.leaky_relu(self.enc_linear_1(x))
+            #print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            # code = self.enc_linear_2(x)
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            # code = self.enc_linear_3(x)
+            # print(code.shape)
+            return code
+
+        def decoder(self, code):
+            # print(code.shape)
+            # x = F.leaky_relu(self.dec_linear_1(code))
+            #print(x.shape)
+            # x = F.leaky_relu(self.dec_linear_2(x))
+            # x = F.relu(self.dec_linear_3(x))
+            #print(x.shape)
+            # x = self.dec_linear_4(x)
+            # x = x.view([code.shape[0], 8, 19, 19])
+            #print('Dim of x: {}'.format(x.shape))
+            #print('Dim indices2: {}'.format(indices2.shape))
+            # x = F.max_unpool2d(x, indices2, 2)
+            x = F.leaky_relu(self.dec_convT_1(code)) #W2 =(W-1)*S-2P+K = (18-1)*2-2*1+4 = 36
+            # print(x.shape)
+            # x = F.max_unpool2d(x, indices1, 2)
+            #print('Dim indices1: {}'.format(indices1.shape))
+            x = F.leaky_relu(self.dec_convT_2(x))  # (36-1)*2-2*1+5 = 73
+            # print(x.shape)
+            x = F.leaky_relu(self.dec_convT_3(x)) # (73-1)*2-2*1+5 = 147
+            # print(x.shape)
+            out = torch.sigmoid(self.dec_convT_4(x)) # (147-1)*3-2*2+2 = 436
+    #        decoded = F.tanh(x)
+            return out
+
 elif structure_net == 'convs_simple_two_dense':
     class ConvAutoencoder(nn.Module):
         def __init__(self, code_size):
@@ -259,11 +338,85 @@ elif structure_net == 'convs_simple_two_dense':
             super().__init__()
             self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
             self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1)  # b, 8, 3, 3
+            self.enc_cnn_3 = nn.Conv2d(8, 1, 4, stride=2, padding=1) 
             self.enc_linear_1 = nn.Linear(in_features=10368, out_features=4000)   #Flattened image is fed into linear NN and reduced to half size
             self.enc_linear_2 = nn.Linear(in_features=4000, out_features=self.code_size)
             # self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
             self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=4000)
             self.dec_linear_2 = nn.Linear(in_features=4000, out_features=10368)
+            self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2)  # b, 16, 5, 5
+            self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1)  # b, 8, 15, 15
+            self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1)  # b, 8, 15, 15
+            
+        def forward(self, images):
+            code = self.encoder(images)
+            out = self.decoder(code)
+            return out, code
+
+        def encoder(self, images):
+            # print('Enconding:')
+            # print(images.shape)
+            x = F.leaky_relu(self.enc_cnn_1(images)) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=2) #indices for unpooling, #146/2 = 73
+            # print(x.shape)
+            x = F.leaky_relu( self.enc_cnn_2(x)) #[73,73,16] -> W2 = (73-3+2*1)/2+1 = 38
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=1) #38/2 = 19 -> [19,19,8]
+            # print(x.shape)
+            code = F.leaky_relu( self.enc_cnn_3(x)) #[36,36,8] -> W2 = (36-4+2*1)/2+1 = 38
+            # x = F.leaky_relu(x)
+            # print(x.shape)
+            x = x.view([images.size(0), -1])
+            # print(x.shape)
+            x = F.leaky_relu(self.enc_linear_1(x))
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            code = self.enc_linear_2(x)
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            # code = self.enc_linear_3(x)
+            # print(code.shape)
+            return code
+
+        def decoder(self, code):
+            # print('Deconding:')
+            # print(code.shape)
+            x = F.leaky_relu(self.dec_linear_1(code))
+            # print(x.shape)
+            x = F.leaky_relu(self.dec_linear_2(x))
+            # x = F.relu(self.dec_linear_3(x))
+            # print(x.shape)
+            # x = self.dec_linear_4(x)
+            x = x.view([code.shape[0], 8, 36, 36])
+            # print(x.shape)
+            #print('Dim indices2: {}'.format(indices2.shape))
+            # x = F.max_unpool2d(x, indices2, 2)
+            x = F.leaky_relu(self.dec_convT_1(x)) #W2 =(W-1)*S-2P+K = (19-1)*2-2*2+3
+            # print(x.shape)
+            # x = F.max_unpool2d(x, indices1, 2)
+            #print('Dim indices1: {}'.format(indices1.shape))
+            x = F.leaky_relu(self.dec_convT_2(x))           
+            # print(x.shape)
+            out = torch.sigmoid(self.dec_convT_3(x))
+            # print(out.shape)
+    #        decoded = F.tanh(x)
+            return out
+
+elif structure_net == 'convs_simple_two_dense_v2':
+    class ConvAutoencoder(nn.Module):
+        def __init__(self, code_size):
+            self.code_size = code_size
+            super().__init__()
+            self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
+            self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1)  # b, 8, 3, 3
+            self.enc_linear_1 = nn.Linear(in_features=10368, out_features=500)   #Flattened image is fed into linear NN and reduced to half size
+            self.enc_linear_2 = nn.Linear(in_features=500, out_features=self.code_size)
+            # self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
+            self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=500)
+            self.dec_linear_2 = nn.Linear(in_features=500, out_features=10368)
             self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2)  # b, 16, 5, 5
             self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1)  # b, 8, 15, 15
             self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1)  # b, 8, 15, 15
@@ -323,6 +476,82 @@ elif structure_net == 'convs_simple_two_dense':
     #        decoded = F.tanh(x)
             return out
 
+elif structure_net == 'convs_simple_two_dense_v3':
+    class ConvAutoencoder(nn.Module):
+        def __init__(self, code_size):
+            self.code_size = code_size
+            super().__init__()
+            self.enc_cnn_1 = nn.Conv2d(1, 16, 3, stride=3, padding=1)  # b, 16, 10, 10
+            self.enc_cnn_2 = nn.Conv2d(16, 8, 3, stride=2, padding=1)  # b, 8, 3, 3
+            self.enc_cnn_3 = nn.Conv2d(8, 1, 4, stride=2, padding=1) 
+            self.enc_linear_1 = nn.Linear(in_features=324, out_features=500)   #Flattened image is fed into linear NN and reduced to half size
+            self.enc_linear_2 = nn.Linear(in_features=500, out_features=self.code_size)
+            # self.enc_linear_3 = nn.Linear(in_features=100, out_features=self.code_size)
+            self.dec_linear_1 = nn.Linear(in_features=self.code_size, out_features=500)
+            self.dec_linear_2 = nn.Linear(in_features=500, out_features=324)
+            self.dec_convT_4 = nn.ConvTranspose2d(1, 8, 3, stride=2)  # b, 16, 5, 5
+            self.dec_convT_1 = nn.ConvTranspose2d(8, 16, 3, stride=2, padding=1)  # b, 16, 5, 5
+            self.dec_convT_2 = nn.ConvTranspose2d(16, 8, 2, stride=2, padding=0)  # b, 8, 15, 15
+            self.dec_convT_3 = nn.ConvTranspose2d(8, 1, 3, stride=3, padding=1)  # b, 8, 15, 15
+            
+        def forward(self, images):
+            code = self.encoder(images)
+            out = self.decoder(code)
+            return out, code
+
+        def encoder(self, images):
+            # print('Enconding:')
+            # print(images.shape)
+            x = F.leaky_relu(self.enc_cnn_1(images)) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=2) #indices for unpooling, #146/2 = 73
+            # print(x.shape)
+            x = F.leaky_relu( self.enc_cnn_2(x)) #[73,73,16] -> W2 = (73-3+2*1)/2+1 = 37
+            # print(x.shape)
+            x = F.max_pool2d(x, kernel_size=2, stride=1) # 36
+            # print(x.shape)
+            x = F.leaky_relu( self.enc_cnn_3(x)) #[36,36,8] -> W2 = (36-4+2*1)/2+1 = 18
+            # x = F.leaky_relu(x)
+            # print(x.shape)
+            x = x.view([images.size(0), -1])
+            # print(x.shape)
+            x = F.leaky_relu(self.enc_linear_1(x))
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            code = self.enc_linear_2(x)
+            # print(x.shape)
+            # x = F.dropout(x,p=0.5)
+            # print(x.shape)
+            # code = self.enc_linear_3(x)
+            # print(code.shape)
+            return code
+
+        def decoder(self, code):
+            # print('Deconding:')
+            # print(code.shape)
+            x = F.leaky_relu(self.dec_linear_1(code))
+            # print(x.shape)
+            x = F.leaky_relu(self.dec_linear_2(x))
+            # x = F.relu(self.dec_linear_3(x))
+            # print(x.shape)
+            # x = self.dec_linear_4(x)
+            x = x.view([code.shape[0], 1, 18, 18])
+            # print(x.shape)
+            #print('Dim indices2: {}'.format(indices2.shape))
+            # x = F.max_unpool2d(x, indices2, 2)
+            x = F.leaky_relu(self.dec_convT_4(x)) #W2 =(W-1)*S-2P+K = (18-1)*2-2*0+3 = 37
+            # print(x.shape)
+            x = F.leaky_relu(self.dec_convT_1(x)) #W2 =(W-1)*S-2P+K = (37-1)*2-2*1+3 = 73
+            # print(x.shape)
+            # x = F.max_unpool2d(x, indices1, 2)
+            #print('Dim indices1: {}'.format(indices1.shape))
+            x = F.leaky_relu(self.dec_convT_2(x))  #W2 =(W-1)*S-2P+K = (73-1)*2-2*0+2 = 146
+            # print(x.shape)
+            out = torch.sigmoid(self.dec_convT_3(x)) #W2 =(W-1)*S-2P+K = (146-1)*3-2*1+3 = 436
+            # print(out.shape)
+    #        decoded = F.tanh(x)
+            return out
 
 # convert data to torch.FloatTensor
 # transform = transforms.ToTensor()
@@ -345,7 +574,9 @@ dataset_dir      = os.path.join(curr_path, "data/All_samples_noise")
 batch_size       = 128
 validation_split = .1 # -- split training set into train/val sets
 n_epochs           = 30
-print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}\n structure: {}'.format(curr_path, dataset_dir, batch_size, validation_split, n_epochs, structure_net))
+code_size = 100 #dimension of the latent space
+patience = 5
+print('training params:\n curr_path: {}\n dataset dir: {}\n batch size: {}\n val split: {}\n epochs: {}\n structure: {}\n code_size: {}\n patience: {}\n'.format(curr_path, dataset_dir, batch_size, validation_split, n_epochs, structure_net, code_size, patience))
 
 # -- transforms to use
 normalize = transforms.Normalize(mean=[0.5],
@@ -406,7 +637,6 @@ print('Dim of sample image: {}\n'.format(img.shape))
 #initialize the NN
 #model = ConvAutoencoder()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # PyTorch v0.4.0
-code_size = 100 #dimension of the latent space
 model = ConvAutoencoder(code_size).to(device)
 
 #print(model)
@@ -424,10 +654,26 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 #n_epochs = 10 #Make it stop before overfitting
 best_loss = 100.0
 
-if phase == 'train':
+def train_model(model, batch_size, patience, n_epochs):
+    # to track the training loss as the model trains
+    train_losses = []
+    # to track the validation loss as the model trains
+    valid_losses = []
+    # to track the average training loss per epoch as the model trains
+    avg_train_losses = []
+    # to track the average validation loss per epoch as the model trains
+    avg_valid_losses = [] 
+
+    # initialize the early_stopping object
+    early_stopping = EarlyStopping(patience=patience, verbose=True)
+    # early_stop=0
+    # epoch=1
+
     for epoch in range (1, n_epochs+1):
+    # while early_stop==0:
+        # print('EarlyStopping: {}\n'.format(early_stop))
         #Monitor training Loss
-        train_loss = 0.0
+        # train_loss = 0.0
         
         #Train the model
         #for data in dataloaders['train']:
@@ -448,23 +694,67 @@ if phase == 'train':
             # Perform single optimization step (parameter update)
             optimizer.step()
             #Update running training loss
-            train_loss += loss.item()*images.size(0)
-            
+            # train_loss += loss.item()*images.size(0)
+            train_losses.append(loss.item())
+
         #print average training stats
-        train_loss = train_loss/len(dataloaders['train'])
-        print('Epoch: {}/{} \tTraining Loss: {:.6f}'.format(epoch,n_epochs,train_loss))
+        # train_loss = train_loss/len(dataloaders['train'])
+        # print('Epoch: {}/{} \tTraining Loss: {:.6f}'.format(epoch,n_epochs,train_loss))
 
-        if train_loss < best_loss:
-            best_loss = train_loss
-            best_model_wts = copy.deepcopy(model.state_dict())
-            torch.save(best_model_wts, 'best_net_test' + structure_net + '.pth')
+        # if train_loss < best_loss:
+        #     best_loss = train_loss
+        #     best_model_wts = copy.deepcopy(model.state_dict())
+        #     torch.save(best_model_wts, 'best_net_test' + structure_net + '.pth')
 
-        if epoch % 5 == 0:
-            pic = to_img(out.cpu().data)
-            save_image(pic, './dc_img/image_{}.png'.format(epoch))
+        # if epoch % 5 == 0:
+        #     pic = to_img(out.cpu().data)
+            # save_image(pic, './dc_img/image_{}.png'.format(epoch))
 
-else:
-    model.load_state_dict(torch.load('best_net_test' + structure_net + '.pth'))
+    #validate model
+        for data in dataloaders['val']:
+            # forward pass: compute predicted outputs by passing inputs to the model
+            images, _ = data
+            images = Variable(images).to(device)
+            out, code = model(Variable(images))
+            # calculate the loss
+            loss = criterion(out, images)
+            # record validation loss
+            valid_losses.append(loss.item())
+            valid_losses.append(loss.item())
+
+        # print training/validation statistics 
+        # calculate average loss over an epoch
+        train_loss = np.average(train_losses)
+        valid_loss = np.average(valid_losses)
+        avg_train_losses.append(train_loss)
+        avg_valid_losses.append(valid_loss)
+        
+        epoch_len = len(str(n_epochs))
+        
+        print_msg = (f'[{epoch:>{epoch_len}}/{n_epochs:>{epoch_len}}] ' +
+                     f'train_loss: {train_loss:.5f} ' +
+                     f'valid_loss: {valid_loss:.5f}')
+
+        print(print_msg)
+        
+        # clear lists to track next epoch
+        train_losses = []
+        valid_losses = []
+        
+        # early_stopping needs the validation loss to check if it has decresed, 
+        # and if it has, it will make a checkpoint of the current model
+        early_stopping(valid_loss, model)
+        
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
+
+        # load the last checkpoint with the best model
+    model.load_state_dict(torch.load('checkpoint.pt'))
+    return  model, avg_train_losses, avg_valid_losses
+        # epoch=epoch+1
+# else:
+#     model.load_state_dict(torch.load('best_net_test' + structure_net + '.pth'))
 
 ## Checking results ##
 #Batch of test images
@@ -472,6 +762,12 @@ dataiter = iter(dataloaders['val'])
 images, labels = dataiter.next()
 images = Variable(images).cuda()
 
+if phase == 'train':
+    model, train_loss, valid_loss = train_model(model, batch_size, patience, n_epochs)
+    best_model_wts = copy.deepcopy(model.state_dict())
+    torch.save(best_model_wts, 'best_model' + structure_net + '.pth')
+else:
+    model.load_state_dict(torch.load('checkpoint.pt'))
 #Get sample outputs
 
 output, _ = model(images)
@@ -496,3 +792,22 @@ for images, row in zip([images, output], axes):
 fig.suptitle(structure_net + '_' +str(n_epochs) + 'epochs', fontsize=16)
 plt.savefig('conv_auto_output_' + structure_net + '_' +str(n_epochs) + 'epochs.png')
 
+# visualize the loss as the network trained
+fig = plt.figure(figsize=(10,8))
+plt.plot(range(1,len(train_loss)+1),train_loss, label='Training Loss')
+plt.plot(range(1,len(valid_loss)+1),valid_loss,label='Validation Loss')
+
+# find position of lowest validation loss
+minposs = valid_loss.index(min(valid_loss))+1 
+plt.axvline(minposs, linestyle='--', color='r',label='Early Stopping Checkpoint')
+
+plt.xlabel('epochs')
+plt.ylabel('loss')
+# plt.ylim(0, 0.5) # consistent scale
+plt.xlim(0, len(train_loss)+1) # consistent scale
+plt.title('Loss_' + structure_net + '_' + str(n_epochs) + 'epochs')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+fig.savefig('loss_plot' + structure_net + '_' + str(n_epochs) + 'epochs.png', bbox_inches='tight')
