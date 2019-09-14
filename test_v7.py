@@ -42,12 +42,12 @@ if not os.path.exists('./dc_img'):
 ## Choose on structure
 # 'only_convs_with_maxpool' -> two conv layers for encoding and two for decoding. No dropout or fully connected
 # 'convs_withDense_withUnpool' -> with unpool layers 
-# 'convs_simple' -> like the one I did first
+# 'convs_simple' -> like the one I did first... doesn't have a latent space to plot. Maybe just turn it in an array?
 # 'convs_simple_two_dense' -> Adding two fcs in the middle
 # 'convs_simple_3layersConv' -> adding one more conv layer to bring it to one channel
 # 'convs_simple_two_dense_v2' -> making the fc more narrow (500)
 # 'convs_simple_two_dense_v3' -> adding a 3rd conv for encoder and making the fc more narrow (500)
-structure_net = 'only_convs_with_maxpool'
+structure_net = 'convs_simple_two_dense_v2'
 
 def to_img(x):
     x = 0.5 * (x + 1)
@@ -89,10 +89,10 @@ if structure_net == 'only_convs_with_maxpool':
             x = self.enc_cnn_2(x) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
             # print(x.shape)
             x, indices2 = F.max_pool2d(x,kernel_size=2, return_indices=True) #38/2 = 19 -> [19,19,8]
-            code = F.leaky_relu(x)
+            x = F.leaky_relu(x)
             # print(x.shape)
-            # x = x.view([images.size(0), -1])
-            # print(x.shape)
+            code = x.view([images.size(0), -1])
+            # print(code.shape)
             # x = F.relu(self.enc_linear_1(x))
             # print(x.shape)
             # x = F.dropout(x,p=0.5)
@@ -113,9 +113,9 @@ if structure_net == 'only_convs_with_maxpool':
             # x = F.relu(self.dec_linear_3(x))
             # print(x.shape)
             # x = self.dec_linear_4(x)
-            # x = x.view([code.shape[0], 8, 19, 19])
+            x = code.view([code.shape[0], 8, 19, 19])
             # print(x.shape)
-            x = F.max_unpool2d(code, indices2, 2)
+            x = F.max_unpool2d(x, indices2, 2)
             x = F.leaky_relu(self.dec_convT_1(x))
             # print(x.shape)
             # x = F.relu(self.dec_convT_2(x))
@@ -218,6 +218,7 @@ elif structure_net == 'convs_simple':
             return out, code
 
         def encoder(self, images):
+            # print('Enconder:')
             # print(images.shape)
             x = F.leaky_relu(self.enc_cnn_1(images)) # [436,436,1], K=3, P=1, S=3 -> W2 =(W−F+2P)/S+1 = (436-3+2*1)/3+1= 146
             # print(x.shape)
@@ -226,7 +227,9 @@ elif structure_net == 'convs_simple':
             # x = F.leaky_relu(x)
             x = F.leaky_relu( self.enc_cnn_2(x)) #[73,73,16] -> W2 = (73-3+2*2)/2+1 = 38
             # print(x.shape)
-            code = F.max_pool2d(x, kernel_size=2, stride=1) #38/2 = 19 -> [19,19,8]
+            x = F.max_pool2d(x, kernel_size=2, stride=1) #38/2 = 19 -> [19,19,8]
+            # print(x.shape)
+            code = x.view([images.size(0), -1]) #export flatten image
             # x = F.leaky_relu(x)
             #print(x.shape)
             # x = x.view([images.size(0), -1])
@@ -244,6 +247,7 @@ elif structure_net == 'convs_simple':
             return code
 
         def decoder(self, code):
+            # print('\nDecoder:')
             # print(code.shape)
             # x = F.leaky_relu(self.dec_linear_1(code))
             #print(x.shape)
@@ -251,11 +255,11 @@ elif structure_net == 'convs_simple':
             # x = F.relu(self.dec_linear_3(x))
             #print(x.shape)
             # x = self.dec_linear_4(x)
-            # x = x.view([code.shape[0], 8, 19, 19])
+            x = code.view([code.shape[0], 8, 36, 36]) #turning into matrix again
             #print('Dim of x: {}'.format(x.shape))
             #print('Dim indices2: {}'.format(indices2.shape))
             # x = F.max_unpool2d(x, indices2, 2)
-            x = F.leaky_relu(self.dec_convT_1(code)) #W2 =(W-1)*S-2P+K = (19-1)*2-2*2+3
+            x = F.leaky_relu(self.dec_convT_1(x)) #W2 =(W-1)*S-2P+K = (19-1)*2-2*2+3
             # print(x.shape)
             # x = F.max_unpool2d(x, indices1, 2)
             #print('Dim indices1: {}'.format(indices1.shape))
@@ -300,11 +304,11 @@ elif structure_net == 'convs_simple_3layersConv':
             # print(x.shape)
             x = F.max_pool2d(x, kernel_size=2, stride=1) #38/2 = 19 -> [19,19,8]
             # print(x.shape)
-            code = F.leaky_relu( self.enc_cnn_3(x)) #[36,36,8] -> W2 = (36-4+2*1)/2+1 = 38
+            x = F.leaky_relu( self.enc_cnn_3(x)) #[36,36,8] -> W2 = (36-4+2*1)/2+1 = 38
             # x = F.leaky_relu(x)
-            #print(x.shape)
-            # x = x.view([images.size(0), -1])
-            #print(x.shape)
+            # print(x.shape)
+            code = x.view([images.size(0), -1])
+            # print(x.shape)
             # x = F.leaky_relu(self.enc_linear_1(x))
             #print(x.shape)
             # x = F.dropout(x,p=0.5)
@@ -325,11 +329,11 @@ elif structure_net == 'convs_simple_3layersConv':
             # x = F.relu(self.dec_linear_3(x))
             #print(x.shape)
             # x = self.dec_linear_4(x)
-            # x = x.view([code.shape[0], 8, 19, 19])
+            x = code.view([code.shape[0], 1, 18, 18])
             #print('Dim of x: {}'.format(x.shape))
             #print('Dim indices2: {}'.format(indices2.shape))
             # x = F.max_unpool2d(x, indices2, 2)
-            x = F.leaky_relu(self.dec_convT_1(code)) #W2 =(W-1)*S-2P+K = (18-1)*2-2*1+4 = 36
+            x = F.leaky_relu(self.dec_convT_1(x)) #W2 =(W-1)*S-2P+K = (18-1)*2-2*1+4 = 36
             # print(x.shape)
             # x = F.max_unpool2d(x, indices1, 2)
             #print('Dim indices1: {}'.format(indices1.shape))
@@ -578,10 +582,10 @@ elif structure_net == 'convs_simple_two_dense_v3':
 # how many samples per batch to load
 # batch_size = 20
 
-phase = 'train'
+phase = 'val'
 curr_path	 = os.getcwd()
 dataset_dir      = os.path.join(curr_path, "data/All_samples_noise")
-testset_dir      = os.path.join(curr_path,"data/correct_classifier/1303_Agrp-Trpv1_1st")
+testset_dir      = os.path.join(curr_path,"data/testset")
 batch_size       = 128
 validation_split = .1 # -- split training set into train/val sets
 n_epochs           = 50
@@ -858,41 +862,76 @@ if phase == 'train':
     plt.show()
     fig.savefig('loss_plot' + structure_net + '_' + str(n_epochs) + 'epochs.png', bbox_inches='tight')
 
-# NOW A REAL TEST#
-# -- create dataset
-test_dataset = datasets.ImageFolder(testset_dir, transform=trans)
-class_names   = test_dataset.classes
-num_classes   = len(test_dataset)
-dataset_size  = len(test_dataset)
-print('Starting unseen dataset \n dataset has {} images'.format(dataset_size))
+# # NOW A REAL TEST#
+# # -- create dataset
+# test_dataset = datasets.ImageFolder(testset_dir, transform=trans)
+# class_names   = test_dataset.classes
+# num_classes   = len(test_dataset)
+# dataset_size  = len(test_dataset)
+# print('Starting unseen dataset \n dataset has {} images'.format(dataset_size))
 
-#Load labels
-curr_path    = os.getcwd()
-excel_path      =  '/home/antonio/Documents/conv_auto/data/correct_classifier/1303_Agrp-Trpv1_1st/1303_Agrp-Trpv1_1st_GT.xlsx'
-tabela = pd.read_excel(excel_path)
-labels_all = tabela['GT']
+# #Load labels
+# # curr_path    = os.getcwd()
+# # excel_path      =  '/home/antonio/Documents/conv_auto/data/correct_classifier/1303_Agrp-Trpv1_1st/1303_Agrp-Trpv1_1st_GT.xlsx'
+# # tabela = pd.read_excel(excel_path)
+# # labels_all = tabela['GT']
+
+# dataloaders   = {
+#     'train': torch.utils.data.DataLoader(image_dataset, batch_size=batch_size, num_workers=4),
+#     'test': torch.utils.data.DataLoader(test_dataset,  batch_size=dataset_size, num_workers=4, shuffle=False),
+# }
+
+# # model.load_state_dict(torch.load('best_model' + structure_net + '.pth'))
+
+# dataiter = iter(dataloaders['test'])
+# images, labels = dataiter.next()
+# labels = labels.numpy()
+# print('labels: {}'.format(labels))
+# images = Variable(images).cuda()
+# output, code = model(images)
+
+# #Prep images for display
+# images = images.cpu().numpy()
+
+# # torch.save(code.cpu(), '/home/antonio/Documents/conv_auto/code.pt')
+# # np.save('/home/antonio/Documents/conv_auto/code_np' + structure_net, code.cpu().detach().numpy())
+
+# phate_operator = phate.PHATE(n_components=3, k=5, a=20, t=150)
+# # data_phate = phate_operator.fit_transform(code.cpu().detach().numpy())
+# # print('data_phate shape: {}\n'.format(data_phate.shape))
+
+# # print(labels_all)
+# # phate.plot.scatter2d(data_phate, c=labels_all, cmap="Spectral",filename="test_sqrt_Sept11.png", title="Test1", ticks=False, label_prefix="PHATE")
+# # phate.plot.rotate_scatter3d(data_phate, c=labels, filename="embedding_" + structure_net + ".gif", title=structure_net)
+
+
+#Get PHATE plot for training data#
+print('\nEmbedding training data:')
+image_dataset = datasets.ImageFolder(dataset_dir, transform=trans)
+class_names   = image_dataset.classes
+num_classes   = len(class_names)
+dataset_size  = len(image_dataset)
+print('dataset has {} images'.format(dataset_size))
+print('dataset has {} classes:'.format(num_classes))
+print(class_names)
 
 dataloaders   = {
-    'test': torch.utils.data.DataLoader(test_dataset,  batch_size=dataset_size, num_workers=4, shuffle=False),
+    'train': torch.utils.data.DataLoader(image_dataset, batch_size=2000, num_workers=4),
 }
 
-# model.load_state_dict(torch.load('best_model' + structure_net + '.pth'))
-
-dataiter = iter(dataloaders['test'])
+dataiter = iter(dataloaders['train'])
 images, labels = dataiter.next()
+labels = labels.numpy()
+# print('labels: {}'.format(labels))
 images = Variable(images).cuda()
 output, code = model(images)
 
 #Prep images for display
-images = images.cpu().numpy()
-
-torch.save(code.cpu(), '/home/antonio/Documents/conv_auto/code.pt')
-np.save('/home/antonio/Documents/conv_auto/code_np' + structure_net, code.cpu().detach().numpy())
-
+# images = images.cpu().numpy()
 phate_operator = phate.PHATE(n_components=3, k=5, a=20, t=150)
-data_phate = phate_operator.fit_transform(code.cpu().detach().numpy())
-print('data_phate shape: {}\n'.format(data_phate.shape))
+training_phate = phate_operator.fit_transform(code.cpu().detach().numpy())
+print('training_phate shape: {}\n'.format(training_phate.shape))
 
-phate.plot.scatter2d(data_phate, c=labels_all, cmap="Spectral",filename="test_sqrt_Sept11.png", title="Test1", ticks=False, label_prefix="PHATE")
-phate.plot.rotate_scatter3d(data_phate, c=labels_all, filename="embedding_test.gif", title="convs_simple_two_dense_v2")
-    
+# print(labels_all)
+# phate.plot.scatter2d(data_phate, c=labels_all, cmap="Spectral",filename="test_sqrt_Sept11.png", title="Test1", ticks=False, label_prefix="PHATE")
+phate.plot.rotate_scatter3d(training_phate, filename="embedding_trainingData" + structure_net + ".gif", title=structure_net)
