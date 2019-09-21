@@ -862,76 +862,76 @@ if phase == 'train':
     plt.show()
     fig.savefig('loss_plot' + structure_net + '_' + str(n_epochs) + 'epochs.png', bbox_inches='tight')
 
-# # NOW A REAL TEST#
-# # -- create dataset
-# test_dataset = datasets.ImageFolder(testset_dir, transform=trans)
-# class_names   = test_dataset.classes
-# num_classes   = len(test_dataset)
-# dataset_size  = len(test_dataset)
-# print('Starting unseen dataset \n dataset has {} images'.format(dataset_size))
+# NOW A REAL TEST#
+# -- create dataset
+test_dataset = datasets.ImageFolder(testset_dir, transform=trans)
+class_names   = test_dataset.classes
+num_classes   = len(test_dataset)
+dataset_size  = len(test_dataset)
+print('Starting unseen dataset \n dataset has {} images'.format(dataset_size))
 
-# #Load labels
-# # curr_path    = os.getcwd()
-# # excel_path      =  '/home/antonio/Documents/conv_auto/data/correct_classifier/1303_Agrp-Trpv1_1st/1303_Agrp-Trpv1_1st_GT.xlsx'
-# # tabela = pd.read_excel(excel_path)
-# # labels_all = tabela['GT']
-
-# dataloaders   = {
-#     'train': torch.utils.data.DataLoader(image_dataset, batch_size=batch_size, num_workers=4),
-#     'test': torch.utils.data.DataLoader(test_dataset,  batch_size=dataset_size, num_workers=4, shuffle=False),
-# }
-
-# # model.load_state_dict(torch.load('best_model' + structure_net + '.pth'))
-
-# dataiter = iter(dataloaders['test'])
-# images, labels = dataiter.next()
-# labels = labels.numpy()
-# print('labels: {}'.format(labels))
-# images = Variable(images).cuda()
-# output, code = model(images)
-
-# #Prep images for display
-# images = images.cpu().numpy()
-
-# # torch.save(code.cpu(), '/home/antonio/Documents/conv_auto/code.pt')
-# # np.save('/home/antonio/Documents/conv_auto/code_np' + structure_net, code.cpu().detach().numpy())
-
-# phate_operator = phate.PHATE(n_components=3, k=5, a=20, t=150)
-# # data_phate = phate_operator.fit_transform(code.cpu().detach().numpy())
-# # print('data_phate shape: {}\n'.format(data_phate.shape))
-
-# # print(labels_all)
-# # phate.plot.scatter2d(data_phate, c=labels_all, cmap="Spectral",filename="test_sqrt_Sept11.png", title="Test1", ticks=False, label_prefix="PHATE")
-# # phate.plot.rotate_scatter3d(data_phate, c=labels, filename="embedding_" + structure_net + ".gif", title=structure_net)
-
-
-#Get PHATE plot for training data#
-print('\nEmbedding training data:')
-image_dataset = datasets.ImageFolder(dataset_dir, transform=trans)
-class_names   = image_dataset.classes
-num_classes   = len(class_names)
-dataset_size  = len(image_dataset)
-print('dataset has {} images'.format(dataset_size))
-print('dataset has {} classes:'.format(num_classes))
-print(class_names)
+#Load labels
+# curr_path    = os.getcwd()
+# excel_path      =  '/home/antonio/Documents/conv_auto/data/correct_classifier/1303_Agrp-Trpv1_1st/1303_Agrp-Trpv1_1st_GT.xlsx'
+# tabela = pd.read_excel(excel_path)
+# labels_all = tabela['GT']
 
 dataloaders   = {
-    'train': torch.utils.data.DataLoader(image_dataset, batch_size=2000, num_workers=4),
+    'train': torch.utils.data.DataLoader(image_dataset, batch_size=batch_size, num_workers=4),
+    'test': torch.utils.data.DataLoader(test_dataset,  batch_size=dataset_size, num_workers=4, shuffle=False),
 }
 
-dataiter = iter(dataloaders['train'])
+# model.load_state_dict(torch.load('best_model' + structure_net + '.pth'))
+
+dataiter = iter(dataloaders['test'])
 images, labels = dataiter.next()
 labels = labels.numpy()
-# print('labels: {}'.format(labels))
+print('labels: {}'.format(labels))
 images = Variable(images).cuda()
 output, code = model(images)
 
 #Prep images for display
-# images = images.cpu().numpy()
-phate_operator = phate.PHATE(n_components=3, k=5, a=20, t=150)
-training_phate = phate_operator.fit_transform(code.cpu().detach().numpy())
-print('training_phate shape: {}\n'.format(training_phate.shape))
+images = images.cpu().numpy()
+
+# torch.save(code.cpu(), '/home/antonio/Documents/conv_auto/code.pt')
+# np.save('/home/antonio/Documents/conv_auto/code_np' + structure_net, code.cpu().detach().numpy())
+gamma=0
+phate_operator = phate.PHATE(n_components=3, k=5, a=20, t=150, gamma=gamma)
+data_phate = phate_operator.fit_transform(code.cpu().detach().numpy())
+# print('data_phate shape: {}\n'.format(data_phate.shape))
 
 # print(labels_all)
-# phate.plot.scatter2d(data_phate, c=labels_all, cmap="Spectral",filename="test_sqrt_Sept11.png", title="Test1", ticks=False, label_prefix="PHATE")
-phate.plot.rotate_scatter3d(training_phate, filename="embedding_trainingData" + structure_net + ".gif", title=structure_net)
+phate.plot.scatter2d(data_phate, c=labels, filename="embedding_testData_gamma_" + str(gamma) + structure_net + ".png", title=structure_net, ticks=False, label_prefix="PHATE")
+phate.plot.rotate_scatter3d(data_phate, c=labels, filename="embedding_testData_gamma_" + str(gamma) + structure_net + ".gif", title=structure_net)
+
+
+# #Get PHATE plot for training data#
+# print('\nEmbedding training data:')
+# image_dataset = datasets.ImageFolder(dataset_dir, transform=trans)
+# class_names   = image_dataset.classes
+# num_classes   = len(class_names)
+# dataset_size  = len(image_dataset)
+# print('dataset has {} images'.format(dataset_size))
+# print('dataset has {} classes:'.format(num_classes))
+# print(class_names)
+
+# dataloaders   = {
+#     'train': torch.utils.data.DataLoader(image_dataset, batch_size=2000, num_workers=4),
+# }
+
+# dataiter = iter(dataloaders['train'])
+# images, labels = dataiter.next()
+# labels = labels.numpy()
+# # print('labels: {}'.format(labels))
+# images = Variable(images).cuda()
+# output, code = model(images)
+
+# #Prep images for display
+# # images = images.cpu().numpy()
+# phate_operator = phate.PHATE(n_components=3, k=5, a=20, t=150)
+# training_phate = phate_operator.fit_transform(code.cpu().detach().numpy())
+# print('training_phate shape: {}\n'.format(training_phate.shape))
+
+# # print(labels_all)
+# phate.plot.scatter2d(training_phate, cmap="Spectral",filename="embedding_trainingData" + structure_net + ".png", title=structure_net, ticks=False, label_prefix="PHATE")
+# phate.plot.rotate_scatter3d(training_phate, filename="embedding_trainingData" + structure_net + ".gif", title=structure_net)
