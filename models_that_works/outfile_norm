@@ -1,0 +1,114 @@
+dataset has 45797 images
+dataset has 1 classes:
+['vocals']
+
+For test dataset:
+dataset has 1554 images
+dataset has 11 classes:
+['chevron', 'complex', 'down_fm', 'flat', 'mult_steps', 'rev_chevron', 'short', 'step_down', 'step_up', 'two_steps', 'up_fm']
+
+
+ ------NEW RUN------ 
+ training params:
+ phase: train
+ curr_path: /home/antonio/Documents/conv_auto
+ dataset dir: /home/antonio/Documents/conv_auto/data/normalized
+ weight_decay: 0.0001
+ lr: 0.0001
+ batch size: 128
+ val split: 0.2
+ epochs: 200
+ structure: convs_simple_two_dense_batchNorm
+ code_size: 100
+ patience: 5
+ string_name: convs_simple_two_dense_batchNorm_200epochs_codeSize100_lr0.0001_weightDecay0.0001_split0.2_moment0.99_adam_afterNorm
+
+Dim of raw sample image: torch.Size([128, 1, 436, 436])
+
+max 1.0, min -1.0
+[  1/200] train_loss: 64.38958 valid_loss: 51.23713
+[  2/200] train_loss: 48.60526 valid_loss: 44.72606
+[  3/200] train_loss: 39.73360 valid_loss: 34.15138
+[  4/200] train_loss: 32.20173 valid_loss: 29.96496
+[  5/200] train_loss: 25.71922 valid_loss: 21.88417
+[  6/200] train_loss: 20.03469 valid_loss: 16.56955
+[  7/200] train_loss: 15.66609 valid_loss: 12.87872
+[  8/200] train_loss: 12.21242 valid_loss: 9.85445
+[  9/200] train_loss: 10.09823 valid_loss: 7.58691
+[ 10/200] train_loss: 8.02047 valid_loss: 7.00919
+[ 11/200] train_loss: 6.45321 valid_loss: 5.02144
+[ 12/200] train_loss: 4.98191 valid_loss: 4.10394
+[ 13/200] train_loss: 3.93781 valid_loss: 3.55439
+[ 14/200] train_loss: 3.29473 valid_loss: 2.92582
+[ 15/200] train_loss: 2.80371 valid_loss: 2.55424
+[ 16/200] train_loss: 2.49293 valid_loss: 2.30349
+[ 17/200] train_loss: 2.27475 valid_loss: 2.16225
+[ 18/200] train_loss: 2.11987 valid_loss: 1.99434
+[ 19/200] train_loss: 1.99605 valid_loss: 1.90644
+[ 20/200] train_loss: 1.90796 valid_loss: 1.82495
+[ 21/200] train_loss: 1.85919 valid_loss: 1.78417
+[ 22/200] train_loss: 1.79083 valid_loss: 1.70819
+[ 23/200] train_loss: 1.72005 valid_loss: 1.65666
+[ 24/200] train_loss: 1.69337 valid_loss: 1.62781
+[ 25/200] train_loss: 1.63828 valid_loss: 1.57735
+[ 26/200] train_loss: 1.61072 valid_loss: 1.57840
+EarlyStopping counter: 1 out of 5
+[ 27/200] train_loss: 1.58799 valid_loss: 1.54270
+[ 28/200] train_loss: 1.56275 valid_loss: 1.52832
+[ 29/200] train_loss: 1.54579 valid_loss: 1.52005
+[ 30/200] train_loss: 1.52692 valid_loss: 1.60158
+EarlyStopping counter: 1 out of 5
+[ 31/200] train_loss: 1.56071 valid_loss: 1.60228
+EarlyStopping counter: 2 out of 5
+[ 32/200] train_loss: 1.66301 valid_loss: 1.51590
+[ 33/200] train_loss: 1.52323 valid_loss: 1.47544
+[ 34/200] train_loss: 1.48211 valid_loss: 1.45334
+[ 35/200] train_loss: 1.47891 valid_loss: 1.46069
+EarlyStopping counter: 1 out of 5
+[ 36/200] train_loss: 1.45873 valid_loss: 1.45222
+[ 37/200] train_loss: 1.44159 valid_loss: 1.42544
+[ 38/200] train_loss: 1.43613 valid_loss: 1.41972
+[ 39/200] train_loss: 1.43098 valid_loss: 1.51022
+EarlyStopping counter: 1 out of 5
+[ 40/200] train_loss: 1.68213 valid_loss: 1.52335
+EarlyStopping counter: 2 out of 5
+[ 41/200] train_loss: 1.51722 valid_loss: 1.46199
+EarlyStopping counter: 3 out of 5
+[ 42/200] train_loss: 1.47157 valid_loss: 1.44305
+EarlyStopping counter: 4 out of 5
+[ 43/200] train_loss: 1.44606 valid_loss: 1.43496
+EarlyStopping counter: 5 out of 5
+Early stopping
+Training complete in 54m 41s
+Dim of val_set images: torch.Size([128, 1, 436, 436])
+max 1.0, min -1.0
+
+Dim of output_val image: torch.Size([128, 1, 436, 436])
+max 1.0, min -1.0
+
+Calculating PHATE...
+labels: [ 0  0  0 ... 10 10 10]
+Dim of test images: torch.Size([1554, 1, 436, 436])
+max 1.0, min -1.0
+
+Checking sizes: 
+ images_test: 1181636736
+ 
+Dim of output image: torch.Size([1554, 1, 436, 436])
+max 1.0, min -1.0
+
+Checking sizes: 
+ output_test: 1181636736
+ 
+  Running PHATE on 1554 cells and 100 genes.
+  Calculating graph and diffusion operator...
+    Calculating KNN search...
+    Calculated KNN search in 0.31 seconds.
+    Calculating affinities...
+    Calculated affinities in 0.03 seconds.
+  Calculated graph and diffusion operator in 0.35 seconds.
+  Calculating diffusion potential...
+  Calculated diffusion potential in 0.13 seconds.
+  Calculating metric MDS...
+  Calculated metric MDS in 14.28 seconds.
+Calculated PHATE in 14.79 seconds.
